@@ -6,7 +6,7 @@ export type LessonTimeSlot = "AM" | "PM" | "FULL_DAY";
 
 export type Weekday = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 
-/** Target age band for a lesson group (years). */
+/** Target age range for a lesson group (years). */
 export const GROUP_AGE_RANGES = ["4-6", "7-12"] as const;
 export type GroupAgeRange = (typeof GROUP_AGE_RANGES)[number];
 
@@ -14,6 +14,7 @@ export type Student = {
   id: string;
   name: string;
   age: number;
+  discipline: Discipline;
   level: StudentLevel;
   medicalInfo: string;
   parentName: string;
@@ -38,6 +39,7 @@ export type LessonGroup = {
   leadInstructorId: string | null;
   day: Weekday;
   time: LessonTimeSlot;
+  discipline: Discipline;
   level: StudentLevel;
   ageRange: GroupAgeRange;
   notes: string;
@@ -62,6 +64,4 @@ export function parseDragPayload(
 }
 
 export const DROP_POOL_STUDENTS = "drop-pool-students";
-export const DROP_POOL_INSTRUCTORS = "drop-pool-instructors";
 export const DROP_ROSTER_STUDENTS = "drop-roster-students";
-export const DROP_ROSTER_INSTRUCTORS = "drop-roster-instructors";

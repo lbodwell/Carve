@@ -4,16 +4,19 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { SortingState } from "@tanstack/react-table";
 
-import type { Student } from "@/lib/ski-school/types";
+import type { Discipline, Student } from "@/lib/ski-school/types";
+import type { StudentFilterOptions } from "@/lib/ski-school/roster-filters";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -25,6 +28,10 @@ import {
 } from "@/components/ui/select";
 import { StudentFormDialog } from "@/features/students/student-form-dialog";
 import { useSkiSchool } from "@/lib/ski-school/context";
+import {
+  hasMeaningfulMedicalInfo,
+  matchesStudentFilters,
+} from "@/lib/ski-school/roster-filters";
 
 export const Route = createFileRoute("/students")({ component: StudentsPage });
 
@@ -37,37 +44,63 @@ const STUDENT_TABLE_LEVEL_FILTER_LABELS: Record<string, string> = {
   ),
 };
 
+const STUDENT_AGE_BAND_LABELS: Record<string, string> = {
+  all: "All ages",
+  "4-6": "Ages 4–6",
+  "7-12": "Ages 7–12",
+};
+
+const STUDENT_MEDICAL_LABELS: Record<string, string> = {
+  all: "Medical: any",
+  has: "Has medical",
+  urgent: "Urgent only",
+};
+
 function StudentsPage() {
   const { students, removeStudent } = useSkiSchool();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<string>("all");
+  const [ageBand, setAgeBand] = useState<string>("all");
+  const [medical, setMedical] = useState<string>("all");
+  const [discipline, setDiscipline] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const filterOpts: StudentFilterOptions = useMemo(
+    () => ({
+      query,
+      level,
+      ageBand: ageBand as StudentFilterOptions["ageBand"],
+      medical: medical as StudentFilterOptions["medical"],
+      discipline: discipline === "all" ? undefined : (discipline as Discipline),
+    }),
+    [query, level, ageBand, medical, discipline]
+  );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return students.filter((s) => {
-      if (level !== "all" && String(s.level) !== level) return false;
-      if (!q) return true;
-      const hay =
-        `${s.name} ${s.notes} ${s.parentName} ${s.medicalInfo} ${s.parentPhone} ${s.parentEmail}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [students, query, level]);
+    return students.filter((s) => matchesStudentFilters(s, filterOpts));
+  }, [students, filterOpts]);
 
   const columns = useMemo(
     () => [
       col.accessor("name", {
-        header: "Name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
         size: 140,
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
       col.accessor("age", {
-        header: "Age",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Age" />
+        ),
         size: 50,
       }),
       col.accessor("level", {
-        header: "Level",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Level" />
+        ),
         size: 60,
         cell: (info) => (
           <Badge variant="outline" className="font-mono">
@@ -75,12 +108,27 @@ function StudentsPage() {
           </Badge>
         ),
       }),
+      col.accessor("discipline", {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Discipline" />
+        ),
+        size: 72,
+        cell: (info) => (
+          <Badge variant="secondary">
+            {info.getValue() === "ski" ? "Ski" : "Snow"}
+          </Badge>
+        ),
+      }),
       col.accessor("medicalInfo", {
-        header: "Medical",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Medical" />
+        ),
         size: 160,
         cell: (info) => {
           const val = info.getValue().trim();
-          if (!val) return <span className="text-muted-foreground">-</span>;
+          if (!hasMeaningfulMedicalInfo(info.getValue())) {
+            return <span className="text-muted-foreground">-</span>;
+          }
           const lower = val.toLowerCase();
           const urgent =
             lower.includes("epi") ||
@@ -94,11 +142,15 @@ function StudentsPage() {
         },
       }),
       col.accessor("parentName", {
-        header: "Parent",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Parent" />
+        ),
         size: 120,
       }),
       col.accessor("parentPhone", {
-        header: "Phone",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Phone" />
+        ),
         size: 100,
         cell: (info) => (
           <span className="text-muted-foreground">
@@ -107,7 +159,9 @@ function StudentsPage() {
         ),
       }),
       col.accessor("parentEmail", {
-        header: "Email",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Email" />
+        ),
         size: 160,
         cell: (info) => (
           <span className="text-muted-foreground">
@@ -116,7 +170,9 @@ function StudentsPage() {
         ),
       }),
       col.accessor("notes", {
-        header: "Notes",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Notes" />
+        ),
         size: 200,
         cell: (info) => {
           const val = info.getValue().trim();
@@ -131,6 +187,7 @@ function StudentsPage() {
       col.display({
         id: "actions",
         size: 100,
+        enableSorting: false,
         cell: (info) => {
           const s = info.row.original;
           return (
@@ -160,7 +217,7 @@ function StudentsPage() {
                 }}
                 aria-label={`Delete ${s.name}`}
               >
-                <Trash2 className="text-destructive" />
+                <Trash className="size-3.5 text-destructive" />
               </Button>
             </div>
           );
@@ -173,8 +230,11 @@ function StudentsPage() {
   const table = useReactTable({
     data: filtered,
     columns,
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10 },
@@ -187,8 +247,8 @@ function StudentsPage() {
       description="Full roster with medical context, parent contacts, and placement notes at a glance."
     >
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="grid min-w-0 flex-1 gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="grid min-w-0 flex-1 gap-1 sm:min-w-[12rem]">
             <label htmlFor="student-search" className="text-xs font-medium">
               Search
             </label>
@@ -199,7 +259,7 @@ function StudentsPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="grid w-full gap-1 sm:w-44">
+          <div className="grid w-full gap-1 sm:w-36">
             <label className="text-xs font-medium">Level</label>
             <Select
               value={level}
@@ -217,6 +277,62 @@ function StudentsPage() {
                       Level {lv}
                     </SelectItem>
                   ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid w-full gap-1 sm:w-36">
+            <label className="text-xs font-medium">Age range</label>
+            <Select
+              value={ageBand}
+              items={STUDENT_AGE_BAND_LABELS}
+              onValueChange={(v) => setAgeBand(v ?? "all")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All ages</SelectItem>
+                  <SelectItem value="4-6">Ages 4–6</SelectItem>
+                  <SelectItem value="7-12">Ages 7–12</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid w-full gap-1 sm:w-40">
+            <label className="text-xs font-medium">Medical</label>
+            <Select
+              value={medical}
+              items={STUDENT_MEDICAL_LABELS}
+              onValueChange={(v) => setMedical(v ?? "all")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">Any</SelectItem>
+                  <SelectItem value="has">Has note</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid w-full gap-1 sm:w-32">
+            <label className="text-xs font-medium">Discipline</label>
+            <Select
+              value={discipline}
+              onValueChange={(v) => setDiscipline(v ?? "all")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="ski">Ski</SelectItem>
+                  <SelectItem value="snowboard">Snowboard</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

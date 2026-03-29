@@ -1,344 +1,265 @@
-import type { Instructor, LessonGroup, Student } from "./types";
+import { schedulesOverlap } from "./schedule";
+import {
+  INSTRUCTOR_FAMILY_NAMES,
+  INSTRUCTOR_FIRST_NAMES,
+  STUDENT_FAMILY_NAMES,
+  STUDENT_FIRST_NAMES,
+} from "./seed-names";
+import type {
+  Discipline,
+  GroupAgeRange,
+  Instructor,
+  LessonGroup,
+  LessonTimeSlot,
+  Student,
+  StudentLevel,
+  Weekday,
+} from "./types";
 
-export const seedStudents: Array<Student> = [
-  {
-    id: "stu-1",
-    name: "Alex Rivera",
-    age: 8,
-    level: 2,
-    medicalInfo: "EpiPen in jacket pocket",
-    parentName: "Maria Rivera",
-    parentPhone: "555-0101",
-    parentEmail: "maria.r@example.com",
-    notes: "Nervous on steep blues; prefers morning.",
-  },
-  {
-    id: "stu-2",
-    name: "Jordan Chen",
-    age: 12,
-    level: 4,
-    medicalInfo: "None",
-    parentName: "Sam Chen",
-    parentPhone: "555-0102",
-    parentEmail: "sam.chen@example.com",
-    notes: "Wants to work on carving; strong skier.",
-  },
-  {
-    id: "stu-3",
-    name: "Taylor Brooks",
-    age: 10,
-    level: 3,
-    medicalInfo: "Asthma — inhaler before lunch",
-    parentName: "Chris Brooks",
-    parentPhone: "555-0103",
-    parentEmail: "chris.b@example.com",
-    notes: "Pair with patient instructor; first time group lesson.",
-  },
-  {
-    id: "stu-4",
-    name: "Riley O'Neil",
-    age: 9,
-    level: 2,
-    medicalInfo: "None",
-    parentName: "Pat O'Neil",
-    parentPhone: "555-0104",
-    parentEmail: "pat.oneil@example.com",
-    notes: "Snowboard-curious; helmet fits snug.",
-  },
-  {
-    id: "stu-5",
-    name: "Morgan Singh",
-    age: 14,
-    level: 5,
-    medicalInfo: "None",
-    parentName: "Priya Singh",
-    parentPhone: "555-0105",
-    parentEmail: "priya.s@example.com",
-    notes: "Racing program track; needs technical drills.",
-  },
-  {
-    id: "stu-6",
-    name: "Casey Miller",
-    age: 7,
-    level: 1,
-    medicalInfo: "None",
-    parentName: "Jamie Miller",
-    parentPhone: "555-0106",
-    parentEmail: "jamie.m@example.com",
-    notes: "Beginner magic carpet only; parents late pickup Fridays.",
-  },
-  {
-    id: "stu-7",
-    name: "Leo Martinez",
-    age: 5,
-    level: 1,
-    medicalInfo: "None",
-    parentName: "Elena Martinez",
-    parentPhone: "555-0107",
-    parentEmail: "elena.m@example.com",
-    notes: "First season; needs frequent glove and snack breaks.",
-  },
-  {
-    id: "stu-8",
-    name: "Nina Patel",
-    age: 6,
-    level: 2,
-    medicalInfo: "None",
-    parentName: "Vik Patel",
-    parentPhone: "555-0108",
-    parentEmail: "vik.p@example.com",
-    notes: "Confident on mellow greens; working on parallel.",
-  },
-  {
-    id: "stu-9",
-    name: "Drew Kim",
-    age: 11,
-    level: 3,
-    medicalInfo: "None",
-    parentName: "Min Kim",
-    parentPhone: "555-0109",
-    parentEmail: "min.k@example.com",
-    notes: "Switches edges late on steeper blues.",
-  },
-  {
-    id: "stu-10",
-    name: "Avery Walsh",
-    age: 10,
-    level: 2,
-    medicalInfo: "None",
-    parentName: "Quinn Walsh",
-    parentPhone: "555-0110",
-    parentEmail: "quinn.w@example.com",
-    notes: "Ride-share pickup; photo release on file.",
-  },
-  {
-    id: "stu-11",
-    name: "Chris Nguyen",
-    age: 12,
-    level: 4,
-    medicalInfo: "None",
-    parentName: "Linh Nguyen",
-    parentPhone: "555-0111",
-    parentEmail: "linh.n@example.com",
-    notes: "Interested in bumps and trees next.",
-  },
-  {
-    id: "stu-12",
-    name: "Sam Okonkwo",
-    age: 5,
-    level: 1,
-    medicalInfo: "None",
-    parentName: "Amara Okonkwo",
-    parentPhone: "555-0112",
-    parentEmail: "amara.o@example.com",
-    notes: "Tiny boots; double-check rental fit each morning.",
-  },
-  {
-    id: "stu-13",
-    name: "Rowan Blake",
-    age: 9,
-    level: 3,
-    medicalInfo: "Nut allergy — no shared snacks",
-    parentName: "Jules Blake",
-    parentPhone: "555-0113",
-    parentEmail: "jules.b@example.com",
-    notes: "Bring own labeled snack pack.",
-  },
-  {
-    id: "stu-14",
-    name: "Sage Lopez",
-    age: 6,
-    level: 2,
-    medicalInfo: "None",
-    parentName: "Diego Lopez",
-    parentPhone: "555-0114",
-    parentEmail: "diego.l@example.com",
-    notes: "Wears glasses under goggles.",
-  },
-  {
-    id: "stu-15",
-    name: "Quinn Park",
-    age: 10,
-    level: 3,
-    medicalInfo: "None",
-    parentName: "Hana Park",
-    parentPhone: "555-0115",
-    parentEmail: "hana.p@example.com",
-    notes: "Prefers ski; sibling in snowboard group.",
-  },
-  {
-    id: "stu-16",
-    name: "Hayden Roy",
-    age: 11,
-    level: 3,
-    medicalInfo: "None",
-    parentName: "Parker Roy",
-    parentPhone: "555-0116",
-    parentEmail: "parker.r@example.com",
-    notes: "Strong stamina; ok with longer laps.",
-  },
-  {
-    id: "stu-17",
-    name: "Frankie Moss",
-    age: 8,
-    level: 2,
-    medicalInfo: "None",
-    parentName: "Reese Moss",
-    parentPhone: "555-0117",
-    parentEmail: "reese.m@example.com",
-    notes: "Unassigned — flexible for makeup lesson placement.",
-  },
-  {
-    id: "stu-18",
-    name: "Kai Brennan",
-    age: 14,
-    level: 5,
-    medicalInfo: "None",
-    parentName: "Sean Brennan",
-    parentPhone: "555-0118",
-    parentEmail: "sean.b@example.com",
-    notes: "Unassigned — waiting on Sat PM advanced roster.",
-  },
+function emailLocalPart(prefix: string, suffix: string): string {
+  const a = prefix.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const b = suffix.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return `${a}.${b}`;
+}
+
+const WEEKDAYS: Array<Weekday> = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun",
 ];
 
-export const seedInstructors: Array<Instructor> = [
-  {
-    id: "ins-1",
-    name: "Sam Winter",
-    phone: "ext 2201",
-    email: "sam.winter@resort.com",
-    disciplines: ["ski"],
-    notes: "Great with kids; Level 1–3 ski.",
-  },
-  {
-    id: "ins-2",
-    name: "Riley Frost",
-    phone: "ext 2202",
-    email: "riley.frost@resort.com",
-    disciplines: ["snowboard"],
-    notes: "Park & freestyle snowboard specialist.",
-  },
-  {
-    id: "ins-3",
-    name: "Jamie Peak",
-    phone: "ext 2203",
-    email: "jamie.peak@resort.com",
-    disciplines: ["ski", "snowboard"],
-    notes: "PSIA-AASI; prefers mixed-discipline groups.",
-  },
-  {
-    id: "ins-4",
-    name: "Skyler Cruz",
-    phone: "ext 2204",
-    email: "skyler.cruz@resort.com",
-    disciplines: ["ski"],
-    notes: "Advanced ski; steep/corridor comfort.",
-  },
-  {
-    id: "ins-5",
-    name: "Blake Hart",
-    phone: "ext 2205",
-    email: "blake.hart@resort.com",
-    disciplines: ["ski"],
-    notes: "Loves teaching progression; strong on gradual terrain parks.",
-  },
-  {
-    id: "ins-6",
-    name: "Dana Reyes",
-    phone: "ext 2206",
-    email: "dana.reyes@resort.com",
-    disciplines: ["snowboard"],
-    notes: "Beginner-friendly; clear verbal cues for switch riding.",
-  },
-];
+/** Weekend-heavy weights: indices align with WEEKDAYS */
+const DAY_WEIGHTS = [1, 1, 1, 1, 5, 8, 8];
 
-export const seedGroups: Array<LessonGroup> = [
-  {
-    id: "grp-1",
-    studentIds: ["stu-1", "stu-6"],
-    instructorIds: ["ins-1"],
-    leadInstructorId: "ins-1",
-    day: "Sat",
-    time: "AM",
-    level: 2,
-    ageRange: "7-12",
-    notes: "Focus on wedge stops and confidence.",
-  },
-  {
-    id: "grp-2",
-    studentIds: ["stu-2", "stu-5"],
-    instructorIds: ["ins-4"],
-    leadInstructorId: "ins-4",
-    day: "Sat",
-    time: "PM",
-    level: 5,
-    ageRange: "7-12",
-    notes: "Edge engagement and short turns.",
-  },
-  {
-    id: "grp-3",
-    studentIds: ["stu-3", "stu-9", "stu-13"],
-    instructorIds: ["ins-3"],
-    leadInstructorId: "ins-3",
-    day: "Sun",
-    time: "AM",
-    level: 3,
-    ageRange: "7-12",
-    notes: "Mixed confidence; lots of side-slipping practice.",
-  },
-  {
-    id: "grp-4",
-    studentIds: ["stu-7", "stu-12"],
-    instructorIds: ["ins-1"],
-    leadInstructorId: "ins-1",
-    day: "Sat",
-    time: "AM",
-    level: 1,
-    ageRange: "4-6",
-    notes: "Rope tow etiquette and stopping in control.",
-  },
-  {
-    id: "grp-5",
-    studentIds: ["stu-4", "stu-10"],
-    instructorIds: ["ins-2"],
-    leadInstructorId: "ins-2",
-    day: "Sun",
-    time: "PM",
-    level: 2,
-    ageRange: "7-12",
-    notes: "Heel-to-toe flow and falling leaf refinement.",
-  },
-  {
-    id: "grp-6",
-    studentIds: ["stu-11"],
-    instructorIds: ["ins-4"],
-    leadInstructorId: "ins-4",
-    day: "Fri",
-    time: "PM",
-    level: 4,
-    ageRange: "7-12",
-    notes: "Private-ish small group; rhythm on carved turns.",
-  },
-  {
-    id: "grp-7",
-    studentIds: ["stu-15", "stu-16"],
-    instructorIds: ["ins-5"],
-    leadInstructorId: "ins-5",
-    day: "Mon",
-    time: "FULL_DAY",
-    level: 3,
-    ageRange: "7-12",
-    notes: "Camp day — indoor video review at lunch.",
-  },
-  {
-    id: "grp-8",
-    studentIds: ["stu-8", "stu-14"],
-    instructorIds: ["ins-6"],
-    leadInstructorId: "ins-6",
-    day: "Tue",
-    time: "AM",
-    level: 2,
-    ageRange: "4-6",
-    notes: "J-bars only; working toward linked heelside turns.",
-  },
-];
+const TIME_SLOTS: Array<LessonTimeSlot> = ["AM", "PM", "FULL_DAY"];
+
+const TIME_WEIGHTS = [40, 40, 12];
+
+const MEDICAL_SAMPLES = [
+  "EpiPen in jacket pocket — front desk copy on file.",
+  "Asthma — rescue inhaler in right pocket; use before lunch.",
+  "Nut allergy — no shared snacks; labeled lunch only.",
+  "Hearing aids — prefer instructor on skier’s right.",
+  "",
+  "",
+  "",
+  "",
+] as const;
+
+type Assignment = {
+  kind: "student" | "instructor";
+  id: string;
+  day: Weekday;
+  time: LessonTimeSlot;
+};
+
+function pickWeightedIndex(weights: ReadonlyArray<number>, roll: number): number {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let t = roll * total;
+  for (let i = 0; i < weights.length; i++) {
+    t -= weights[i];
+    if (t <= 0) return i;
+  }
+  return weights.length - 1;
+}
+
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function formatParentPhone(n: number): string {
+  const area = 303 + (n % 4);
+  const mid = 555;
+  const last = 1000 + (n % 9000);
+  return `(${area}) ${mid}-${String(last).slice(-4)}`;
+}
+
+function formatStaffPhone(n: number): string {
+  const area = 720 + (n % 5);
+  const mid = 555;
+  const last = 2000 + (n % 7999);
+  return `(${area}) ${mid}-${String(last).slice(-4)}`;
+}
+
+function buildStudents(rand: () => number): Array<Student> {
+  const out: Array<Student> = [];
+  for (let i = 1; i <= 200; i++) {
+    const age = 4 + Math.floor(rand() * 9);
+    const band: GroupAgeRange = age <= 6 ? "4-6" : "7-12";
+    const level = Math.min(
+      6,
+      Math.max(1, Math.round(1 + (age - 4) * 0.45 + rand() * 2))
+    ) as StudentLevel;
+    const discipline: Discipline = i % 2 === 0 ? "ski" : "snowboard";
+    const med =
+      MEDICAL_SAMPLES[Math.floor(rand() * MEDICAL_SAMPLES.length)] ?? "";
+    const fn = STUDENT_FIRST_NAMES[i - 1];
+    const ln = STUDENT_FAMILY_NAMES[i - 1];
+    const name = `${fn} ${ln}`;
+    out.push({
+      id: `stu-${String(i).padStart(3, "0")}`,
+      name,
+      age,
+      discipline,
+      level,
+      medicalInfo: med,
+      parentName: `${fn} parent`,
+      parentPhone: formatParentPhone(i * 17 + 101),
+      parentEmail: `parent.stu${i}@example.com`,
+      notes:
+        band === "4-6"
+          ? "Beginner group placement; sticker rewards help."
+          : rand() > 0.5
+            ? "Standard lesson pacing; video feedback OK."
+            : "Prefers verbal cues; helmet cam opt-out.",
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildInstructors(rand: () => number): Array<Instructor> {
+  const out: Array<Instructor> = [];
+  for (let i = 1; i <= 50; i++) {
+    const r = rand();
+    let disciplines: Array<Discipline>;
+    if (r < 0.38) disciplines = ["ski"];
+    else if (r < 0.76) disciplines = ["snowboard"];
+    else disciplines = ["ski", "snowboard"];
+
+    const fn = INSTRUCTOR_FIRST_NAMES[i - 1];
+    const ln = INSTRUCTOR_FAMILY_NAMES[i - 1];
+    out.push({
+      id: `ins-${String(i).padStart(2, "0")}`,
+      name: `${fn} ${ln}`,
+      phone: formatStaffPhone(i * 131),
+      email: `${emailLocalPart(fn, ln)}${i}@alpineschool.example`,
+      disciplines,
+      notes:
+        disciplines.length === 2
+          ? "Dual-certified; prefers mixed-discipline groups."
+          : disciplines[0] === "ski"
+            ? "Kids specialist; levels 1–4."
+            : "Beginner-friendly; clear switch drills.",
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function hasOverlap(
+  list: Array<Assignment>,
+  kind: Assignment["kind"],
+  id: string,
+  day: Weekday,
+  time: LessonTimeSlot
+): boolean {
+  return list.some(
+    (a) =>
+      a.kind === kind &&
+      a.id === id &&
+      schedulesOverlap(a.day, a.time, day, time)
+  );
+}
+
+function studentMatchesGroup(
+  s: Student,
+  discipline: Discipline,
+  ageRange: GroupAgeRange
+): boolean {
+  if (s.discipline !== discipline) return false;
+  const band: GroupAgeRange = s.age <= 6 ? "4-6" : "7-12";
+  return band === ageRange;
+}
+
+function buildGroups(
+  rand: () => number,
+  students: Array<Student>,
+  instructors: Array<Instructor>
+): Array<LessonGroup> {
+  const assignments: Array<Assignment> = [];
+  const groups: Array<LessonGroup> = [];
+  const usedStudentIds = new Set<string>();
+
+  let tries = 0;
+  while (groups.length < 25 && tries < 500) {
+    tries += 1;
+    const day = WEEKDAYS[pickWeightedIndex(DAY_WEIGHTS, rand())];
+    const time = TIME_SLOTS[pickWeightedIndex(TIME_WEIGHTS, rand())];
+    const discipline: Discipline = rand() > 0.48 ? "ski" : "snowboard";
+    const ageRange: GroupAgeRange = rand() > 0.42 ? "7-12" : "4-6";
+    const level = Math.max(
+      1,
+      Math.min(6, 1 + Math.floor(rand() * 5))
+    ) as StudentLevel;
+
+    const eligibleInstructors = instructors.filter(
+      (i) =>
+        i.disciplines.includes(discipline) &&
+        !hasOverlap(assignments, "instructor", i.id, day, time)
+    );
+    if (eligibleInstructors.length === 0) continue;
+
+    const lead =
+      eligibleInstructors[Math.floor(rand() * eligibleInstructors.length)];
+
+    const rosterSize = 3 + Math.floor(rand() * 5);
+    const pool = students.filter(
+      (s) =>
+        !usedStudentIds.has(s.id) &&
+        studentMatchesGroup(s, discipline, ageRange) &&
+        !hasOverlap(assignments, "student", s.id, day, time)
+    );
+    if (pool.length === 0) continue;
+    for (let j = pool.length - 1; j > 0; j--) {
+      const k = Math.floor(rand() * (j + 1));
+      [pool[j], pool[k]] = [pool[k], pool[j]];
+    }
+    const studentIds = pool.slice(0, rosterSize).map((s) => s.id);
+    for (const sid of studentIds) {
+      usedStudentIds.add(sid);
+      assignments.push({ kind: "student", id: sid, day, time });
+    }
+    assignments.push({
+      kind: "instructor",
+      id: lead.id,
+      day,
+      time,
+    });
+
+    groups.push({
+      id: `grp-${String(groups.length + 1).padStart(2, "0")}`,
+      studentIds,
+      instructorIds: [lead.id],
+      leadInstructorId: lead.id,
+      day,
+      time,
+      discipline,
+      level,
+      ageRange,
+      notes:
+        time === "FULL_DAY"
+          ? "Full-day camp block — indoor break at lunch."
+          : `${discipline === "ski" ? "Ski" : "Snowboard"} focus; small group dynamics.`,
+    });
+  }
+
+  return groups;
+}
+
+const rand = mulberry32(20260228);
+
+const builtStudents = buildStudents(rand);
+const builtInstructors = buildInstructors(rand);
+const builtGroups = buildGroups(rand, builtStudents, builtInstructors);
+
+export const seedStudents = builtStudents;
+export const seedInstructors = builtInstructors;
+export const seedGroups = builtGroups;

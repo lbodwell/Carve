@@ -4,16 +4,18 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { SortingState } from "@tanstack/react-table";
 
 import type { Discipline, Instructor } from "@/lib/ski-school/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { InstructorFormDialog } from "@/features/instructors/instructor-form-dialog";
 import { useSkiSchool } from "@/lib/ski-school/context";
+import { matchesInstructorFilters } from "@/lib/ski-school/roster-filters";
 
 export const Route = createFileRoute("/instructors")({
   component: InstructorsPage,
@@ -44,31 +47,30 @@ function InstructorsPage() {
   const [discipline, setDiscipline] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Instructor | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return instructors.filter((i) => {
-      if (
-        discipline !== "all" &&
-        !i.disciplines.includes(discipline as Discipline)
-      )
-        return false;
-      if (!q) return true;
-      const hay =
-        `${i.name} ${i.notes} ${i.phone} ${i.email} ${i.disciplines.join(" ")}`.toLowerCase();
-      return hay.includes(q);
-    });
+    return instructors.filter((i) =>
+      matchesInstructorFilters(i, {
+        query,
+        discipline: discipline as "all" | Discipline,
+      })
+    );
   }, [instructors, query, discipline]);
 
   const columns = useMemo(
     () => [
       col.accessor("name", {
-        header: "Name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
         size: 160,
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
       col.accessor("disciplines", {
-        header: "Disciplines",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Disciplines" />
+        ),
         size: 140,
         cell: (info) => (
           <div className="flex flex-wrap gap-1">
@@ -81,7 +83,9 @@ function InstructorsPage() {
         ),
       }),
       col.accessor("phone", {
-        header: "Phone",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Phone" />
+        ),
         size: 110,
         cell: (info) => (
           <span className="text-muted-foreground">
@@ -90,7 +94,9 @@ function InstructorsPage() {
         ),
       }),
       col.accessor("email", {
-        header: "Email",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Email" />
+        ),
         size: 200,
         cell: (info) => (
           <span className="text-muted-foreground">
@@ -99,7 +105,9 @@ function InstructorsPage() {
         ),
       }),
       col.accessor("notes", {
-        header: "Notes",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Notes" />
+        ),
         size: 260,
         cell: (info) => {
           const val = info.getValue().trim();
@@ -114,6 +122,7 @@ function InstructorsPage() {
       col.display({
         id: "actions",
         size: 100,
+        enableSorting: false,
         cell: (info) => {
           const i = info.row.original;
           return (
@@ -156,8 +165,11 @@ function InstructorsPage() {
   const table = useReactTable({
     data: filtered,
     columns,
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10 },

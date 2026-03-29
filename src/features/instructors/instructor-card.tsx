@@ -5,6 +5,8 @@ import type {
   Discipline,
   Instructor,
   LessonGroup,
+  LessonTimeSlot,
+  Weekday,
 } from "@/lib/ski-school/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +14,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatGroupIdentity } from "@/lib/ski-school/group-label";
 import { NotesPreview } from "@/features/shared/notes-preview";
 import { useSkiSchool } from "@/lib/ski-school/context";
+import { schedulesOverlap } from "@/lib/ski-school/schedule";
 import { cn } from "@/lib/utils";
 
 type InstructorCardProps = {
   instructor: Instructor;
   mode: "static" | "drag";
   otherGroups?: Array<LessonGroup>;
+  workspaceSlot?: { day: Weekday; time: LessonTimeSlot };
+  density?: "comfortable" | "compact";
   className?: string;
   isLead?: boolean;
   /** Shown for non-lead instructors in a group roster when reassignment is allowed. */
@@ -32,6 +37,8 @@ function InstructorCard({
   instructor,
   mode,
   otherGroups = [],
+  workspaceSlot,
+  density = "comfortable",
   className,
   isLead = false,
   onMakeLead,
@@ -56,11 +63,17 @@ function InstructorCard({
       <Card
         className={cn(
           "relative gap-2 py-3",
+          density === "compact" && "py-2",
           mode === "drag" && "touch-none select-none",
           isDragging && "opacity-60 ring-2 ring-primary/30"
         )}
       >
-        <CardContent className="flex flex-col gap-2 px-3">
+        <CardContent
+          className={cn(
+            "flex flex-col gap-2 px-3",
+            density === "compact" && "gap-1.5 px-2"
+          )}
+        >
           <div className="flex items-start gap-2">
             {mode === "drag" ? (
               <Button
@@ -77,7 +90,12 @@ function InstructorCard({
             ) : null}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <p className="text-sm leading-tight font-semibold">
+                <p
+                  className={cn(
+                    "leading-tight font-semibold",
+                    density === "compact" ? "text-xs" : "text-sm"
+                  )}
+                >
                   {instructor.name}
                 </p>
                 {isLead ? (
@@ -98,18 +116,32 @@ function InstructorCard({
               ) : null}
               {otherGroups.length > 0 ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {otherGroups.map((g) => (
-                    <Badge
-                      key={g.id}
-                      variant="outline"
-                      title={formatGroupIdentity(
-                        g,
-                        (id) => getInstructor(id)?.name
-                      )}
-                    >
-                      {formatGroupIdentity(g, (id) => getInstructor(id)?.name)}
-                    </Badge>
-                  ))}
+                  {otherGroups.map((g) => {
+                    const label = formatGroupIdentity(
+                      g,
+                      (id) => getInstructor(id)?.name
+                    );
+                    const isSlotConflict = Boolean(
+                      workspaceSlot &&
+                        schedulesOverlap(
+                          workspaceSlot.day,
+                          workspaceSlot.time,
+                          g.day,
+                          g.time
+                        )
+                    );
+                    return (
+                      <Badge
+                        key={g.id}
+                        variant={isSlotConflict ? "destructive" : "outline"}
+                        title={label}
+                      >
+                        {density === "compact" && isSlotConflict
+                          ? "Also this slot"
+                          : label}
+                      </Badge>
+                    );
+                  })}
                 </div>
               ) : null}
               {onMakeLead && !isLead ? (
@@ -128,7 +160,14 @@ function InstructorCard({
               ) : null}
             </div>
           </div>
-          <NotesPreview text={instructor.notes} />
+          {density === "comfortable" ? (
+            <NotesPreview text={instructor.notes} />
+          ) : (
+            <NotesPreview
+              text={instructor.notes}
+              className="[&_p:last-child]:line-clamp-1"
+            />
+          )}
         </CardContent>
       </Card>
     </div>

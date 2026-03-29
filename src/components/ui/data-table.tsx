@@ -1,5 +1,9 @@
 import { flexRender } from "@tanstack/react-table";
-import type { Table as TanstackTable } from "@tanstack/react-table";
+import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "lucide-react";
+import type {
+  Column,
+  Table as TanstackTable,
+} from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +16,44 @@ import {
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZES = [10, 20, 50] as const;
+
+type DataTableColumnHeaderProps<TData, TValue> = {
+  column: Column<TData, TValue>;
+  title: string;
+  className?: string;
+};
+
+function DataTableColumnHeader<TData, TValue>({
+  column,
+  title,
+  className,
+}: DataTableColumnHeaderProps<TData, TValue>) {
+  if (!column.getCanSort()) {
+    return <span className={className}>{title}</span>;
+  }
+  const sorted = column.getIsSorted();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className={cn("-ml-2 gap-1 px-2", className)}
+      onClick={(e) => {
+        e.stopPropagation();
+        column.toggleSorting(sorted === "asc");
+      }}
+    >
+      <span>{title}</span>
+      {sorted === "desc" ? (
+        <ArrowDownIcon data-icon="inline-end" />
+      ) : sorted === "asc" ? (
+        <ArrowUpIcon data-icon="inline-end" />
+      ) : (
+        <ChevronsUpDownIcon data-icon="inline-end" />
+      )}
+    </Button>
+  );
+}
 
 type DataTableProps<TData> = {
   table: TanstackTable<TData>;
@@ -182,4 +224,4 @@ function DataTable<TData>({
   );
 }
 
-export { DataTable };
+export { DataTable, DataTableColumnHeader };

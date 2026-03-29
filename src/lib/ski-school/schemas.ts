@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type {
+  Discipline,
   GroupAgeRange,
   LessonTimeSlot,
   StudentLevel,
@@ -15,6 +16,11 @@ export const studentLevelSchema = z.union([
   z.literal(5),
   z.literal(6),
 ]) satisfies z.ZodType<StudentLevel>;
+
+const disciplineSchema = z.enum([
+  "ski",
+  "snowboard",
+]) satisfies z.ZodType<Discipline>;
 
 const phoneSchema = z.string().refine(
   (s) => {
@@ -34,12 +40,46 @@ const emailSchema = z.string().refine(
   { message: "Invalid email address" }
 );
 
+export const studentFormFieldSchemas = {
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(200, "Name is too long"),
+  age: z
+    .string()
+    .min(1, "Age is required")
+    .refine(
+      (s) => {
+        const n = Number(s);
+        return (
+          Number.isFinite(n) &&
+          Number.isInteger(n) &&
+          n >= 4 &&
+          n <= 12
+        );
+      },
+      { message: "Enter an age between 4 and 12" }
+    ),
+  level: studentLevelSchema,
+  discipline: disciplineSchema,
+  medicalInfo: z.string().max(2000, "Medical notes are too long"),
+  parentName: z.string().max(200, "Name is too long"),
+  parentPhone: phoneSchema,
+  parentEmail: emailSchema,
+  notes: z.string().max(5000, "Notes are too long"),
+} as const;
+
+export const studentNameSchema = studentFormFieldSchemas.name;
+export const studentAgeInputSchema = studentFormFieldSchemas.age;
+export const studentDisciplineSchema = studentFormFieldSchemas.discipline;
+
 /** Raw form shape before coercion (age as string from inputs). */
 export const studentFormRawSchema = z
   .object({
     name: z.string(),
     age: z.string(),
     level: studentLevelSchema,
+    discipline: disciplineSchema,
     medicalInfo: z.string(),
     parentName: z.string(),
     parentPhone: phoneSchema,
@@ -53,9 +93,9 @@ export const studentFormRawSchema = z
   .refine(
     (d) => {
       const n = Number(d.age);
-      return Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 120;
+      return Number.isFinite(n) && Number.isInteger(n) && n >= 4 && n <= 12;
     },
-    { message: "Enter a valid age", path: ["age"] }
+    { message: "Enter an age between 4 and 12", path: ["age"] }
   )
   .refine(
     (d) => d.parentPhone.trim().length > 0 || d.parentEmail.trim().length > 0,
@@ -64,6 +104,18 @@ export const studentFormRawSchema = z
       path: ["parentEmail"],
     }
   );
+
+export const instructorFormFieldSchemas = {
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(200, "Name is too long"),
+  phone: phoneSchema,
+  email: emailSchema,
+  notes: z.string().max(5000, "Notes are too long"),
+  ski: z.boolean(),
+  snowboard: z.boolean(),
+} as const;
 
 export const instructorFormRawSchema = z
   .object({
@@ -118,6 +170,7 @@ export const groupSchema = z.object({
   leadInstructorId: z.string().nullable(),
   day: weekdaySchema,
   time: lessonTimeSlotSchema,
+  discipline: disciplineSchema,
   level: studentLevelSchema,
   ageRange: groupAgeRangeSchema,
   notes: z.string(),

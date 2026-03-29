@@ -6,8 +6,18 @@ import {
   useState,
 } from "react";
 import { seedGroups, seedInstructors, seedStudents } from "./seed";
-import type { ReactNode } from "react";
 
+import { hasDuplicateIdentity } from "./group-identity";
+import {
+  instructorFitsGroup,
+  rosterValidationError,
+  studentFitsGroup,
+} from "./placement";
+import {
+  instructorHasOverlappingAssignment,
+  studentHasOverlappingAssignment,
+} from "./schedule";
+import type { ReactNode } from "react";
 import type { Instructor, LessonGroup, Student } from "./types";
 
 function uid(prefix: string) {
@@ -22,15 +32,9 @@ export type UpsertGroupResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
 
-export function groupIdentityKey(
-  g: Pick<
-    LessonGroup,
-    "day" | "time" | "level" | "leadInstructorId" | "ageRange"
-  >
-) {
-  const lead = g.leadInstructorId ?? "__null__";
-  return `${g.day}|${g.time}|${g.ageRange}|${g.level}|${lead}`;
-}
+export type AssignmentResult = { ok: true } | { ok: false; error: string };
+
+export { groupIdentityKey } from "./group-identity";
 
 export function normalizeGroupLead(g: LessonGroup): LessonGroup {
   if (g.instructorIds.length === 0) {
@@ -43,15 +47,6 @@ export function normalizeGroupLead(g: LessonGroup): LessonGroup {
     return { ...g, leadInstructorId: g.instructorIds[0] };
   }
   return g;
-}
-
-function hasDuplicateIdentity(
-  groups: Array<LessonGroup>,
-  candidate: LessonGroup,
-  excludeId?: string
-) {
-  const key = groupIdentityKey(candidate);
-  return groups.some((g) => g.id !== excludeId && groupIdentityKey(g) === key);
 }
 
 type SkiSchoolContextValue = {
@@ -67,16 +62,25 @@ type SkiSchoolContextValue = {
   removeInstructor: (id: string) => void;
   upsertGroup: (input: UpsertGroupInput) => UpsertGroupResult;
   removeGroup: (id: string) => void;
-  addStudentToGroup: (groupId: string, studentId: string) => void;
+  addStudentToGroup: (groupId: string, studentId: string) => AssignmentResult;
   removeStudentFromGroup: (groupId: string, studentId: string) => void;
-  addInstructorToGroup: (groupId: string, instructorId: string) => void;
+  addInstructorToGroup: (
+    groupId: string,
+    instructorId: string
+  ) => AssignmentResult;
   removeInstructorFromGroup: (groupId: string, instructorId: string) => void;
   setGroupSchedule: (
     groupId: string,
     patch: Partial<
       Pick<
         LessonGroup,
-        "day" | "time" | "level" | "ageRange" | "notes" | "leadInstructorId"
+        | "day"
+        | "time"
+        | "level"
+        | "ageRange"
+        | "discipline"
+        | "notes"
+        | "leadInstructorId"
       >
     >
   ) => { ok: true } | { ok: false; error: string };
@@ -116,6 +120,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         id,
         name: input.name,
         age: input.age,
+        discipline: input.discipline,
         level: input.level,
         medicalInfo: input.medicalInfo,
         parentName: input.parentName,
@@ -187,16 +192,28 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
           leadInstructorId: input.leadInstructorId,
           day: input.day,
           time: input.time,
+          discipline: input.discipline,
           level: input.level,
           ageRange: input.ageRange,
           notes: input.notes,
         });
 
+        const rosterErr = rosterValidationError(
+          without,
+          row,
+          (sid) => students.find((s) => s.id === sid),
+          (iid) => instructors.find((i) => i.id === iid)
+        );
+        if (rosterErr) {
+          outcome = { ok: false, error: rosterErr };
+          return prev;
+        }
+
         if (hasDuplicateIdentity(without, row, input.id)) {
           outcome = {
             ok: false,
             error:
-              "A group with this day, time, age range, level, and lead instructor already exists.",
+              "A group with this day, time, discipline, age range, level, and lead instructor already exists.",
           };
           return prev;
         }
@@ -207,7 +224,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
 
       return outcome;
     },
-    []
+    [students, instructors]
   );
 
   const removeGroup = useCallback((id: string) => {
@@ -215,16 +232,42 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addStudentToGroup = useCallback(
-    (groupId: string, studentId: string) => {
-      setGroups((prev) =>
-        prev.map((g) => {
-          if (g.id !== groupId) return g;
-          if (g.studentIds.includes(studentId)) return g;
-          return { ...g, studentIds: [...g.studentIds, studentId] };
-        })
-      );
+    (groupId: string, studentId: string): AssignmentResult => {
+      let result: AssignmentResult = { ok: true };
+      setGroups((prev) => {
+        const g = prev.find((x) => x.id === groupId);
+        const s = students.find((x) => x.id === studentId);
+        if (!g || !s) {
+          result = { ok: false, error: "Group or student not found." };
+          return prev;
+        }
+        if (g.studentIds.includes(studentId)) return prev;
+        if (!studentFitsGroup(s, g)) {
+          result = {
+            ok: false,
+            error: `${s.name} doesn’t match this lesson’s age range or discipline.`,
+          };
+          return prev;
+        }
+        if (
+          studentHasOverlappingAssignment(prev, studentId, g.day, g.time, g.id)
+        ) {
+          result = {
+            ok: false,
+            error: `${s.name} is already in another lesson at an overlapping time.`,
+          };
+          return prev;
+        }
+        result = { ok: true };
+        return prev.map((grp) =>
+          grp.id === groupId
+            ? { ...grp, studentIds: [...grp.studentIds, studentId] }
+            : grp
+        );
+      });
+      return result;
     },
-    []
+    [students]
   );
 
   const removeStudentFromGroup = useCallback(
@@ -244,22 +287,53 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
   );
 
   const addInstructorToGroup = useCallback(
-    (groupId: string, instructorId: string) => {
-      setGroups((prev) =>
-        prev.map((g) => {
-          if (g.id !== groupId) return g;
-          if (g.instructorIds.includes(instructorId)) return g;
-          const instructorIds = [...g.instructorIds, instructorId];
-          const leadInstructorId = g.leadInstructorId ?? instructorId;
+    (groupId: string, instructorId: string): AssignmentResult => {
+      let result: AssignmentResult = { ok: true };
+      setGroups((prev) => {
+        const g = prev.find((x) => x.id === groupId);
+        const ins = instructors.find((x) => x.id === instructorId);
+        if (!g || !ins) {
+          result = { ok: false, error: "Group or instructor not found." };
+          return prev;
+        }
+        if (g.instructorIds.includes(instructorId)) return prev;
+        if (!instructorFitsGroup(ins, g)) {
+          result = {
+            ok: false,
+            error: `${ins.name} doesn’t teach ${g.discipline === "ski" ? "ski" : "snowboard"}.`,
+          };
+          return prev;
+        }
+        if (
+          instructorHasOverlappingAssignment(
+            prev,
+            instructorId,
+            g.day,
+            g.time,
+            g.id
+          )
+        ) {
+          result = {
+            ok: false,
+            error: `${ins.name} is already in another lesson at an overlapping time.`,
+          };
+          return prev;
+        }
+        result = { ok: true };
+        return prev.map((grp) => {
+          if (grp.id !== groupId) return grp;
+          const instructorIds = [...grp.instructorIds, instructorId];
+          const leadInstructorId = grp.leadInstructorId ?? instructorId;
           return normalizeGroupLead({
-            ...g,
+            ...grp,
             instructorIds,
             leadInstructorId,
           });
-        })
-      );
+        });
+      });
+      return result;
     },
-    []
+    [instructors]
   );
 
   const removeInstructorFromGroup = useCallback(
@@ -291,7 +365,13 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
       patch: Partial<
         Pick<
           LessonGroup,
-          "day" | "time" | "level" | "ageRange" | "notes" | "leadInstructorId"
+          | "day"
+          | "time"
+          | "level"
+          | "ageRange"
+          | "discipline"
+          | "notes"
+          | "leadInstructorId"
         >
       >
     ): { ok: true } | { ok: false; error: string } => {
@@ -306,6 +386,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
           return prev;
         }
         const merged = normalizeGroupLead({ ...g, ...patch });
+
         if (merged.leadInstructorId != null) {
           if (!merged.instructorIds.includes(merged.leadInstructorId)) {
             result = {
@@ -325,11 +406,23 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
           };
           return prev;
         }
+
+        const rosterErr = rosterValidationError(
+          prev,
+          merged,
+          (sid) => students.find((s) => s.id === sid),
+          (iid) => instructors.find((i) => i.id === iid)
+        );
+        if (rosterErr) {
+          result = { ok: false, error: rosterErr };
+          return prev;
+        }
+
         if (hasDuplicateIdentity(prev, merged, groupId)) {
           result = {
             ok: false,
             error:
-              "Another group already uses this day, time, age range, level, and lead instructor.",
+              "Another group already uses this day, time, discipline, age range, level, and lead instructor.",
           };
           return prev;
         }
@@ -339,7 +432,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
 
       return result;
     },
-    []
+    [students, instructors]
   );
 
   const value = useMemo(

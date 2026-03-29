@@ -6,8 +6,8 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Plus, Trash, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import type { ReactNode } from "react";
@@ -22,9 +22,7 @@ import type {
   Weekday,
 } from "@/lib/ski-school/types";
 import {
-  DROP_POOL_INSTRUCTORS,
   DROP_POOL_STUDENTS,
-  DROP_ROSTER_INSTRUCTORS,
   DROP_ROSTER_STUDENTS,
   GROUP_AGE_RANGES,
   parseDragPayload,
@@ -48,89 +46,47 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { InstructorCard } from "@/features/instructors/instructor-card";
 import { StudentCard } from "@/features/students/student-card";
-import { groupIdentityKey, useSkiSchool } from "@/lib/ski-school/context";
+import { useSkiSchool } from "@/lib/ski-school/context";
 import { formatGroupIdentity } from "@/lib/ski-school/group-label";
+import {
+  instructorFitsGroup,
+  studentFitsGroup,
+} from "@/lib/ski-school/placement";
+import {
+  instructorSearchHaystack,
+  matchesStudentFilters,
+} from "@/lib/ski-school/roster-filters";
+import {
+  instructorHasOverlappingAssignment,
+  studentHasOverlappingAssignment,
+} from "@/lib/ski-school/schedule";
 import { cn } from "@/lib/utils";
-
-const WEEKDAYS: Array<Weekday> = [
-  "Mon",
-  "Tue",
-  "Wed",
-  "Thu",
-  "Fri",
-  "Sat",
-  "Sun",
-];
 
 const LEVELS: Array<StudentLevel> = [1, 2, 3, 4, 5, 6];
 
-const TIMES: Array<{ value: LessonTimeSlot; label: string }> = [
-  { value: "AM", label: "AM" },
-  { value: "PM", label: "PM" },
-  { value: "FULL_DAY", label: "Full day" },
-];
-
-/** Base UI Select.Value reads labels from `items` on Root; option nodes in the portal are unmounted while closed. */
-const TIME_SLOT_LABELS: Record<LessonTimeSlot, string> = Object.fromEntries(
-  TIMES.map((t) => [t.value, t.label] as const)
-) as Record<LessonTimeSlot, string>;
-
-const GROUP_SCHEDULE_LEVEL_LABELS: Record<string, string> = Object.fromEntries(
-  LEVELS.map((lv) => [String(lv), `Lv${lv}`])
-);
-
-const DISCIPLINE_FILTER_LABELS: Record<string, string> = {
-  all: "All disciplines",
+const GROUP_BUILDER_DISCIPLINE_ITEMS: Record<Discipline, string> = {
   ski: "Ski",
   snowboard: "Snowboard",
 };
 
-const STUDENT_PANEL_LEVEL_LABELS: Record<string, string> = {
-  all: "All levels",
-  ...Object.fromEntries(
-    LEVELS.map((lv) => [String(lv), `Level ${lv}`] as const)
-  ),
+const GROUP_BUILDER_LEVEL_ITEMS: Record<string, string> = Object.fromEntries(
+  LEVELS.map((lv) => [String(lv), `Lv${lv}`])
+) as Record<string, string>;
+
+const GROUP_BUILDER_AGE_ITEMS: Record<GroupAgeRange, string> = {
+  "4-6": "Ages 4–6",
+  "7-12": "Ages 7–12",
 };
-
-function nextAvailableEmptyGroupSlot(groups: Array<LessonGroup>): {
-  day: Weekday;
-  time: LessonTimeSlot;
-  level: StudentLevel;
-  ageRange: GroupAgeRange;
-} {
-  for (const day of WEEKDAYS) {
-    for (const t of TIMES) {
-      for (const level of LEVELS) {
-        for (const ageRange of GROUP_AGE_RANGES) {
-          const key = groupIdentityKey({
-            day,
-            time: t.value,
-            level,
-            leadInstructorId: null,
-            ageRange,
-          });
-          const clash = groups.some((g) => groupIdentityKey(g) === key);
-          if (!clash) {
-            return { day, time: t.value, level, ageRange };
-          }
-        }
-      }
-    }
-  }
-  return { day: "Mon", time: "AM", level: 1, ageRange: "7-12" };
-}
-
-type DropKind = "student" | "instructor";
 
 type DropPanelProps = {
   id: string;
   children: ReactNode;
   emptyHint: string;
   isEmpty: boolean;
-  acceptKind: DropKind;
-  activeDragKind: DropKind | null;
+  isDragging: boolean;
+  zone: "pool" | "roster";
+  title?: string;
 };
 
 function DropPanel({
@@ -138,54 +94,57 @@ function DropPanel({
   children,
   emptyHint,
   isEmpty,
-  acceptKind,
-  activeDragKind,
+  isDragging,
+  zone,
+  title,
 }: DropPanelProps) {
   const { isOver, setNodeRef } = useDroppable({ id });
-
-  const isMismatch = Boolean(
-    activeDragKind != null && isOver && activeDragKind !== acceptKind
-  );
-  const isMatch = Boolean(
-    activeDragKind != null && isOver && activeDragKind === acceptKind
-  );
+  const isMatch = isDragging && isOver;
 
   return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "flex min-h-[120px] flex-1 flex-col gap-1.5 rounded-lg border-2 border-dashed p-2 transition-colors",
-        isMismatch && "border-destructive bg-destructive/10",
-        isMatch && "border-primary bg-primary/5",
-        !isMismatch &&
-          !isMatch &&
-          (isOver
-            ? "border-muted-foreground/25 bg-muted/15"
-            : "border-border/60 bg-muted/5")
-      )}
-    >
-      {isEmpty ? (
-        <p className="flex flex-1 items-center justify-center px-2 text-center text-[0.625rem] leading-relaxed text-muted-foreground">
-          {emptyHint}
-        </p>
+    <div className="flex flex-col gap-1.5">
+      {title ? (
+        <p className="px-0.5 text-xs font-semibold text-foreground">{title}</p>
       ) : null}
-      {children}
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex min-h-20 flex-1 flex-col gap-1.5 rounded-lg p-2 transition-[box-shadow,background-color,border-color] duration-150",
+          zone === "pool" &&
+            !isMatch &&
+            "border-[3px] border-dashed border-amber-600/55 bg-amber-500/10 dark:border-amber-500/50 dark:bg-amber-500/10",
+          zone === "roster" &&
+            !isMatch &&
+            "border-[3px] border-solid border-primary/35 bg-primary/5 shadow-inner",
+          isMatch &&
+            "border-[3px] border-solid border-primary bg-primary/20 ring-2 ring-primary/40 shadow-md"
+        )}
+      >
+        {isEmpty ? (
+          <p className="flex min-h-12 flex-1 items-center justify-center px-2 text-center text-xs leading-relaxed font-medium text-muted-foreground">
+            {emptyHint}
+          </p>
+        ) : null}
+        {children}
+      </div>
     </div>
   );
 }
 
-type ActiveDrag =
-  | { kind: "student"; student: Student }
-  | { kind: "instructor"; instructor: Instructor };
-
 export type GroupBuilderProps = {
+  workspaceDay: Weekday;
+  workspaceTime: LessonTimeSlot;
   selectedGroupId: string | null;
   onSelectedGroupIdChange: (id: string | null) => void;
+  onDuplicateIdentity?: (message: string) => void;
 };
 
 function GroupBuilder({
+  workspaceDay,
+  workspaceTime,
   selectedGroupId,
   onSelectedGroupIdChange,
+  onDuplicateIdentity,
 }: GroupBuilderProps) {
   const {
     students,
@@ -194,7 +153,6 @@ function GroupBuilder({
     getStudent,
     getInstructor,
     getGroup,
-    upsertGroup,
     removeGroup,
     addStudentToGroup,
     removeStudentFromGroup,
@@ -205,27 +163,71 @@ function GroupBuilder({
 
   const [studentQuery, setStudentQuery] = useState("");
   const [studentLevel, setStudentLevel] = useState<string>("all");
+  const [showOnlyMatchingStudents, setShowOnlyMatchingStudents] =
+    useState(true);
   const [instructorQuery, setInstructorQuery] = useState("");
-  const [disciplineFilter, setDisciplineFilter] = useState<"all" | Discipline>(
-    "all"
-  );
+  const [showUnavailableInstructors, setShowUnavailableInstructors] =
+    useState(false);
 
-  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
-  const activeDragKind: DropKind | null = activeDrag?.kind ?? null;
+  const [activeDrag, setActiveDrag] = useState<{
+    student: Student;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  const workspaceSlot = useMemo(
+    () => ({ day: workspaceDay, time: workspaceTime }),
+    [workspaceDay, workspaceTime]
+  );
+
   const selectedGroup = selectedGroupId ? getGroup(selectedGroupId) : undefined;
+
+  useEffect(() => {
+    if (!selectedGroup) {
+      setStudentLevel("all");
+      return;
+    }
+    setStudentLevel(String(selectedGroup.level));
+  }, [selectedGroupId, selectedGroup?.level]);
+
+  function notify(message: string) {
+    const fn = onDuplicateIdentity ?? ((m: string) => window.alert(m));
+    fn(message);
+  }
+
+  const instructorOverlaps = useMemo(() => {
+    if (!selectedGroup) return () => false;
+    return (instructorId: string) =>
+      instructorHasOverlappingAssignment(
+        groups,
+        instructorId,
+        selectedGroup.day,
+        selectedGroup.time,
+        selectedGroupId
+      );
+  }, [groups, selectedGroup, selectedGroupId]);
+
+  const studentOverlaps = useMemo(() => {
+    if (!selectedGroup) return () => false;
+    return (studentId: string) =>
+      studentHasOverlappingAssignment(
+        groups,
+        studentId,
+        selectedGroup.day,
+        selectedGroup.time,
+        selectedGroupId
+      );
+  }, [groups, selectedGroup, selectedGroupId]);
 
   function applySchedulePatch(
     groupId: string,
     patch: Parameters<typeof setGroupSchedule>[1]
   ) {
     const r = setGroupSchedule(groupId, patch);
-    if (!r.ok && typeof window !== "undefined") {
-      window.alert(r.error);
+    if (!r.ok) {
+      notify(r.error);
     }
   }
 
@@ -252,7 +254,7 @@ function GroupBuilder({
     if (!selectedGroup) return [];
     return selectedGroup.instructorIds
       .map((id) => getInstructor(id))
-      .filter((i): i is NonNullable<typeof i> => Boolean(i));
+      .filter((i): i is Instructor => Boolean(i));
   }, [selectedGroup, getInstructor]);
 
   function otherGroupsForStudent(studentId: string): Array<LessonGroup> {
@@ -262,121 +264,95 @@ function GroupBuilder({
     );
   }
 
-  function otherGroupsForInstructor(instructorId: string): Array<LessonGroup> {
-    if (!selectedGroupId) return [];
-    return groups.filter(
-      (g) => g.id !== selectedGroupId && g.instructorIds.includes(instructorId)
+  function studentEligibleForSelectedGroup(s: Student): boolean {
+    if (!selectedGroup) return false;
+    return (
+      studentFitsGroup(s, selectedGroup) &&
+      !studentOverlaps(s.id)
     );
   }
 
-  const filteredPoolStudents = useMemo(() => {
-    const q = studentQuery.trim().toLowerCase();
-    return poolStudents.filter((s) => {
-      if (studentLevel !== "all" && String(s.level) !== studentLevel)
-        return false;
-      if (!q) return true;
-      const hay =
-        `${s.name} ${s.notes} ${s.parentName} ${s.parentPhone} ${s.parentEmail} ${s.medicalInfo}`.toLowerCase();
-      return hay.includes(q);
-    });
+  const filteredPoolStudentsBase = useMemo(() => {
+    return poolStudents.filter((s) =>
+      matchesStudentFilters(s, {
+        query: studentQuery,
+        level: studentLevel,
+        ageBand: "all",
+        medical: "all",
+      })
+    );
   }, [poolStudents, studentQuery, studentLevel]);
 
-  const filteredPoolInstructors = useMemo(() => {
-    const q = instructorQuery.trim().toLowerCase();
-    return poolInstructors.filter((i) => {
-      if (
-        disciplineFilter !== "all" &&
-        !i.disciplines.includes(disciplineFilter)
-      ) {
-        return false;
-      }
-      if (!q) return true;
-      const hay =
-        `${i.name} ${i.notes} ${i.phone} ${i.email} ${i.disciplines.join(" ")}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [poolInstructors, instructorQuery, disciplineFilter]);
-
-  function groupOptionLabel(g: LessonGroup) {
-    return formatGroupIdentity(g, (id) => getInstructor(id)?.name);
-  }
-
-  const groupSelectLabels = useMemo(
-    () =>
-      Object.fromEntries(
-        groups.map((g) => [
-          g.id,
-          formatGroupIdentity(g, (id) => getInstructor(id)?.name),
-        ])
-      ),
-    [groups, getInstructor]
-  );
-
-  const leadInstructorLabels = useMemo(() => {
-    if (rosterInstructors.length === 0) {
-      return { __none__: "Add instructors first" };
+  const filteredPoolStudents = useMemo(() => {
+    if (!selectedGroup || !showOnlyMatchingStudents) {
+      return filteredPoolStudentsBase;
     }
-    return Object.fromEntries(
-      rosterInstructors.map((i) => [i.id, i.name] as const)
+    return filteredPoolStudentsBase.filter(
+      (s) =>
+        studentFitsGroup(s, selectedGroup) &&
+        !studentHasOverlappingAssignment(
+          groups,
+          s.id,
+          selectedGroup.day,
+          selectedGroup.time,
+          selectedGroupId
+        )
     );
-  }, [rosterInstructors]);
+  }, [
+    filteredPoolStudentsBase,
+    selectedGroup,
+    showOnlyMatchingStudents,
+    groups,
+    selectedGroupId,
+  ]);
+
+  const addCandidateInstructors = useMemo(() => {
+    if (!selectedGroup) return [];
+    const q = instructorQuery.trim().toLowerCase();
+    let list = poolInstructors.filter((i) =>
+      instructorFitsGroup(i, selectedGroup)
+    );
+    if (q) {
+      list = list.filter((i) => instructorSearchHaystack(i).includes(q));
+    }
+    const busy = (i: Instructor) => instructorOverlaps(i.id);
+    const ranked = [...list].sort((a, b) => {
+      const ba = busy(a);
+      const bb = busy(b);
+      if (ba !== bb) return ba ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+    if (showUnavailableInstructors) return ranked;
+    return ranked.filter((i) => !busy(i));
+  }, [
+    poolInstructors,
+    selectedGroup,
+    instructorQuery,
+    showUnavailableInstructors,
+    instructorOverlaps,
+  ]);
 
   function handleDragStart(event: DragStartEvent) {
     const payload = parseDragPayload(event.active.id);
-    if (!payload) return;
-    if (payload.kind === "student") {
-      const student = getStudent(payload.entityId);
-      if (student) setActiveDrag({ kind: "student", student });
-      return;
-    }
-    const instructor = getInstructor(payload.entityId);
-    if (instructor) setActiveDrag({ kind: "instructor", instructor });
+    if (!payload || payload.kind !== "student") return;
+    const student = getStudent(payload.entityId);
+    if (student) setActiveDrag({ student });
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveDrag(null);
     const { active, over } = event;
-    if (!over || !selectedGroupId) return;
+    if (!over || !selectedGroupId || !selectedGroup) return;
     const payload = parseDragPayload(active.id);
-    if (!payload) return;
+    if (!payload || payload.kind !== "student") return;
+    const student = getStudent(payload.entityId);
+    if (!student || !studentEligibleForSelectedGroup(student)) return;
     const target = String(over.id);
-
-    if (payload.kind === "student") {
-      if (target === DROP_ROSTER_STUDENTS) {
-        addStudentToGroup(selectedGroupId, payload.entityId);
-      } else if (target === DROP_POOL_STUDENTS) {
-        removeStudentFromGroup(selectedGroupId, payload.entityId);
-      }
-      return;
-    }
-
-    if (target === DROP_ROSTER_INSTRUCTORS) {
-      addInstructorToGroup(selectedGroupId, payload.entityId);
-    } else if (target === DROP_POOL_INSTRUCTORS) {
-      removeInstructorFromGroup(selectedGroupId, payload.entityId);
-    }
-  }
-
-  function handleDragCancel() {
-    setActiveDrag(null);
-  }
-
-  function handleCreateGroup() {
-    const slot = nextAvailableEmptyGroupSlot(groups);
-    const result = upsertGroup({
-      studentIds: [],
-      instructorIds: [],
-      leadInstructorId: null,
-      day: slot.day,
-      time: slot.time,
-      level: slot.level,
-      ageRange: slot.ageRange,
-      notes: "",
-    });
-    if (result.ok) {
-      onSelectedGroupIdChange(result.id);
-    } else if (typeof window !== "undefined") {
-      window.alert(result.error);
+    if (target === DROP_ROSTER_STUDENTS) {
+      const r = addStudentToGroup(selectedGroupId, payload.entityId);
+      if (!r.ok) notify(r.error);
+    } else if (target === DROP_POOL_STUDENTS) {
+      removeStudentFromGroup(selectedGroupId, payload.entityId);
     }
   }
 
@@ -385,306 +361,139 @@ function GroupBuilder({
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
+      onDragCancel={() => setActiveDrag(null)}
     >
-      <div className="flex h-[70svh] max-h-[56rem] min-h-[32rem] flex-col gap-3">
-        {/* Group selector bar */}
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3 shadow-sm">
-          <div className="grid min-w-[220px] gap-1">
-            <Label className="text-[0.625rem]">Group</Label>
-            <Select
-              value={selectedGroupId ?? ""}
-              items={groupSelectLabels}
-              onValueChange={(v) => onSelectedGroupIdChange(v || null)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a group..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {groupOptionLabel(g)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          {selectedGroup ? (
-            <>
-              <div className="grid gap-1">
-                <Label className="text-[0.625rem]">Day</Label>
-                <Select
-                  value={selectedGroup.day}
-                  onValueChange={(v) =>
-                    applySchedulePatch(selectedGroup.id, {
-                      day: v as Weekday,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {WEEKDAYS.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+      <div className="flex min-h-128 flex-col gap-3 md:h-[min(78svh,56rem)]">
+        {selectedGroup ? (
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3 shadow-sm">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold leading-tight">
+                {formatGroupIdentity(selectedGroup, (id) =>
+                  getInstructor(id)?.name
+                )}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <Badge variant="muted">
+                  {rosterStudents.length} student
+                  {rosterStudents.length !== 1 ? "s" : ""}
+                </Badge>
+                <Badge variant="muted">
+                  {rosterInstructors.length} instructor
+                  {rosterInstructors.length !== 1 ? "s" : ""}
+                </Badge>
               </div>
-              <div className="grid gap-1">
-                <Label className="text-[0.625rem]">Time</Label>
-                <Select
-                  value={selectedGroup.time}
-                  items={TIME_SLOT_LABELS}
-                  onValueChange={(v) =>
-                    applySchedulePatch(selectedGroup.id, {
-                      time: v as LessonTimeSlot,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {TIMES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1">
-                <Label className="text-[0.625rem]">Level</Label>
-                <Select
-                  value={String(selectedGroup.level)}
-                  items={GROUP_SCHEDULE_LEVEL_LABELS}
-                  onValueChange={(v) =>
-                    applySchedulePatch(selectedGroup.id, {
-                      level: Number(v) as StudentLevel,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {LEVELS.map((lv) => (
-                        <SelectItem key={lv} value={String(lv)}>
-                          Lv{lv}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1">
-                <Label className="text-[0.625rem]">Ages</Label>
-                <Select
-                  value={selectedGroup.ageRange}
-                  onValueChange={(v) =>
-                    applySchedulePatch(selectedGroup.id, {
-                      ageRange: v as GroupAgeRange,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-18">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {GROUP_AGE_RANGES.map((ar) => (
-                        <SelectItem key={ar} value={ar}>
-                          {ar}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid min-w-[160px] gap-1">
-                <Label className="text-[0.625rem]">
-                  Lead instructor
-                  {rosterInstructors.length > 0 ? (
-                    <span className="text-destructive"> *</span>
-                  ) : null}
-                </Label>
-                <Select
-                  value={
-                    rosterInstructors.length === 0
-                      ? "__none__"
-                      : selectedGroup.leadInstructorId ||
-                        rosterInstructors[0].id
-                  }
-                  items={leadInstructorLabels}
-                  disabled={rosterInstructors.length === 0}
-                  onValueChange={(v) => {
-                    if (v !== "__none__") {
-                      applySchedulePatch(selectedGroup.id, {
-                        leadInstructorId: v,
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {rosterInstructors.length === 0 ? (
-                        <SelectItem value="__none__">
-                          Add instructors first
-                        </SelectItem>
-                      ) : (
-                        rosterInstructors.map((i) => (
-                          <SelectItem key={i.id} value={i.id}>
-                            {i.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          ) : null}
-          <Button type="button" variant="secondary" onClick={handleCreateGroup}>
-            New group
-          </Button>
-          {selectedGroupId ? (
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-[0.625rem]">Discipline</Label>
+              <Select
+                value={selectedGroup.discipline}
+                items={GROUP_BUILDER_DISCIPLINE_ITEMS}
+                onValueChange={(v) => {
+                  if (v == null) return;
+                  applySchedulePatch(selectedGroup.id, {
+                    discipline: v as Discipline,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-[6.5rem]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="ski">Ski</SelectItem>
+                    <SelectItem value="snowboard">Snowboard</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-[0.625rem]">Level</Label>
+              <Select
+                value={String(selectedGroup.level)}
+                items={GROUP_BUILDER_LEVEL_ITEMS}
+                onValueChange={(v) => {
+                  if (v == null) return;
+                  applySchedulePatch(selectedGroup.id, {
+                    level: Number(v) as StudentLevel,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {LEVELS.map((lv) => (
+                      <SelectItem key={lv} value={String(lv)}>
+                        Lv{lv}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-[0.625rem]">Ages</Label>
+              <Select
+                value={selectedGroup.ageRange}
+                items={GROUP_BUILDER_AGE_ITEMS}
+                onValueChange={(v) => {
+                  if (v == null) return;
+                  applySchedulePatch(selectedGroup.id, {
+                    ageRange: v,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {GROUP_AGE_RANGES.map((ar) => (
+                      <SelectItem key={ar} value={ar}>
+                        {GROUP_BUILDER_AGE_ITEMS[ar]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               type="button"
               variant="destructive"
+              size="sm"
               onClick={() => {
-                const id = selectedGroupId;
+                const id = selectedGroupId!;
                 const remaining = groups.filter((g) => g.id !== id);
                 removeGroup(id);
                 onSelectedGroupIdChange(remaining[0]?.id ?? null);
               }}
             >
-              Delete
+              Delete group
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-center text-sm text-muted-foreground">
+            Select a group in this time slot above, or create a new one.
+          </div>
+        )}
 
-        {/* Three-panel horizontal layout (resizable) */}
         <ResizablePanelGroup
           orientation="horizontal"
           className="flex min-h-0 flex-1"
         >
           <ResizablePanel
-            id="gb-instructors"
-            defaultSize="25%"
-            minSize="22%"
-            className="min-h-0 min-w-0 overflow-hidden"
-          >
-            <div className="flex h-full min-h-0 flex-col rounded-lg border shadow-sm">
-              <div className="border-b bg-muted/30 px-3 py-2">
-                <h3 className="text-xs font-semibold">Instructors</h3>
-                <p className="mt-0.5 text-[0.5625rem] leading-snug text-muted-foreground">
-                  Drag into the center to assign
-                </p>
-                <div className="mt-2 flex flex-col gap-1.5">
-                  <Input
-                    placeholder="Search..."
-                    value={instructorQuery}
-                    onChange={(e) => setInstructorQuery(e.target.value)}
-                  />
-                  <Select
-                    value={disciplineFilter}
-                    items={DISCIPLINE_FILTER_LABELS}
-                    onValueChange={(v) =>
-                      setDisciplineFilter(v as "all" | Discipline)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="all">All disciplines</SelectItem>
-                        <SelectItem value="ski">Ski</SelectItem>
-                        <SelectItem value="snowboard">Snowboard</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                <DropPanel
-                  id={DROP_POOL_INSTRUCTORS}
-                  acceptKind="instructor"
-                  activeDragKind={activeDragKind}
-                  emptyHint="All instructors are assigned to this group."
-                  isEmpty={filteredPoolInstructors.length === 0}
-                >
-                  {filteredPoolInstructors.map((i) => (
-                    <InstructorCard
-                      key={i.id}
-                      instructor={i}
-                      mode="drag"
-                      otherGroups={otherGroupsForInstructor(i.id)}
-                    />
-                  ))}
-                </DropPanel>
-              </div>
-            </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel
             id="gb-center"
-            defaultSize="50%"
-            minSize="36%"
+            defaultSize="65%"
+            minSize="48%"
             className="min-h-0 min-w-0 overflow-hidden"
           >
-            <div className="flex h-full min-h-0 flex-col rounded-lg border shadow-sm">
-              <div className="border-b bg-muted/30 px-3 py-2">
-                <h3 className="text-xs font-semibold">
-                  {selectedGroup
-                    ? groupOptionLabel(selectedGroup)
-                    : "Group roster"}
-                </h3>
-                {selectedGroup ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    <Badge variant="outline">{selectedGroup.day}</Badge>
-                    <Badge variant="outline">
-                      {selectedGroup.time === "FULL_DAY"
-                        ? "Full day"
-                        : selectedGroup.time}
-                    </Badge>
-                    <Badge variant="outline" className="font-mono">
-                      Lv{selectedGroup.level}
-                    </Badge>
-                    <Badge variant="outline" className="font-mono">
-                      {selectedGroup.ageRange}
-                    </Badge>
-                    <Badge variant="muted">
-                      {rosterInstructors.length} instructor
-                      {rosterInstructors.length !== 1 ? "s" : ""}
-                    </Badge>
-                    <Badge variant="muted">
-                      {rosterStudents.length} student
-                      {rosterStudents.length !== 1 ? "s" : ""}
-                    </Badge>
-                  </div>
-                ) : (
-                  <p className="mt-0.5 text-[0.5625rem] text-muted-foreground">
-                    Select or create a group above
-                  </p>
-                )}
-                {selectedGroup ? (
-                  <div className="mt-2">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border shadow-sm">
+              {selectedGroup ? (
+                <>
+                  <div className="border-b bg-muted/30 px-3 py-2">
                     <Textarea
-                      placeholder="Group notes..."
+                      placeholder="Group notes…"
                       value={selectedGroup.notes}
                       onChange={(e) =>
                         applySchedulePatch(selectedGroup.id, {
@@ -692,159 +501,300 @@ function GroupBuilder({
                         })
                       }
                       rows={2}
-                      className="text-[0.625rem]"
+                      className="text-xs"
                     />
                   </div>
-                ) : null}
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2">
-                {selectedGroup ? (
-                  <>
-                    <div>
-                      <p className="mb-1.5 px-1 text-[0.5625rem] font-semibold tracking-wide text-muted-foreground uppercase">
-                        Assigned instructors
+
+                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+                    <DropPanel
+                      id={DROP_ROSTER_STUDENTS}
+                      zone="roster"
+                      isDragging={activeDrag != null}
+                      title={`Students (${rosterStudents.length})`}
+                      emptyHint="Drag matching students from the pool, or use the + button on a card."
+                      isEmpty={rosterStudents.length === 0}
+                    >
+                      {rosterStudents.map((s) => (
+                        <div key={s.id} className="group relative">
+                          <StudentCard
+                            student={s}
+                            mode="drag"
+                            workspaceSlot={workspaceSlot}
+                            otherGroups={otherGroupsForStudent(s.id)}
+                            density="compact"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon-xs"
+                            className="text-destructive-foreground! absolute -top-1 -right-1 rounded-full bg-destructive! opacity-0 shadow transition-opacity group-hover:opacity-100 hover:bg-destructive/90!"
+                            aria-label={`Remove ${s.name}`}
+                            onClick={() =>
+                              removeStudentFromGroup(selectedGroupId!, s.id)
+                            }
+                          >
+                            <Trash className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </DropPanel>
+
+                    <div className="flex flex-col gap-2">
+                      <p className="px-0.5 text-xs font-semibold text-foreground">
+                        Instructors ({rosterInstructors.length})
                       </p>
-                      <DropPanel
-                        id={DROP_ROSTER_INSTRUCTORS}
-                        acceptKind="instructor"
-                        activeDragKind={activeDragKind}
-                        emptyHint="Drag instructors from the left panel."
-                        isEmpty={rosterInstructors.length === 0}
-                      >
-                        {rosterInstructors.map((i) => (
-                          <div key={i.id} className="group relative">
-                            <InstructorCard
-                              instructor={i}
-                              mode="drag"
-                              otherGroups={otherGroupsForInstructor(i.id)}
-                              isLead={i.id === selectedGroup.leadInstructorId}
-                              onMakeLead={
-                                rosterInstructors.length > 1
-                                  ? () =>
-                                      applySchedulePatch(selectedGroup.id, {
-                                        leadInstructorId: i.id,
-                                      })
-                                  : undefined
-                              }
-                            />
+
+                      {rosterInstructors.length === 0 ? (
+                        <p className="px-1 text-xs text-muted-foreground">
+                          No instructors assigned yet. Search below to add one.
+                        </p>
+                      ) : null}
+
+                      {rosterInstructors.map((i) => {
+                        const isLead =
+                          i.id === selectedGroup.leadInstructorId;
+                        const busy = instructorOverlaps(i.id);
+                        return (
+                          <div
+                            key={i.id}
+                            className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs font-medium">
+                                  {i.name}
+                                </span>
+                                {isLead ? <Badge>Lead</Badge> : null}
+                                {i.disciplines.map((d) => (
+                                  <Badge key={d} variant="outline">
+                                    {d === "ski" ? "Ski" : "Snowboard"}
+                                  </Badge>
+                                ))}
+                                {busy ? (
+                                  <Badge variant="destructive">
+                                    Overlapping time
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                              {rosterInstructors.length > 1 && !isLead ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() =>
+                                    applySchedulePatch(selectedGroup.id, {
+                                      leadInstructorId: i.id,
+                                    })
+                                  }
+                                >
+                                  Make lead
+                                </Button>
+                              ) : null}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground hover:text-destructive"
+                                aria-label={`Remove ${i.name}`}
+                                onClick={() =>
+                                  removeInstructorFromGroup(
+                                    selectedGroupId!,
+                                    i.id
+                                  )
+                                }
+                              >
+                                <Trash2 />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {poolInstructors.length > 0 ? (
+                        <div className="flex flex-col gap-2 rounded-md border bg-muted/20 p-2">
+                          <Input
+                            placeholder="Search instructors…"
+                            value={instructorQuery}
+                            onChange={(e) => setInstructorQuery(e.target.value)}
+                            className="text-xs"
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
                             <Button
                               type="button"
-                              variant="destructive"
-                              size="icon-xs"
-                              className="text-destructive-foreground! absolute -top-1 -right-1 rounded-full bg-destructive! opacity-0 shadow transition-opacity group-hover:opacity-100 hover:bg-destructive/90!"
-                              aria-label={`Remove ${i.name}`}
+                              size="xs"
+                              variant={
+                                showUnavailableInstructors
+                                  ? "secondary"
+                                  : "outline"
+                              }
                               onClick={() =>
-                                removeInstructorFromGroup(
-                                  selectedGroupId!,
-                                  i.id
-                                )
+                                setShowUnavailableInstructors((v) => !v)
                               }
                             >
-                              <X />
+                              {showUnavailableInstructors
+                                ? "Hiding busy"
+                                : "Show busy too"}
                             </Button>
+                            <span className="text-[0.5625rem] text-muted-foreground">
+                              Only coaches who teach this discipline are listed.
+                            </span>
                           </div>
-                        ))}
-                      </DropPanel>
-                    </div>
-                    <div>
-                      <p className="mb-1.5 px-1 text-[0.5625rem] font-semibold tracking-wide text-muted-foreground uppercase">
-                        Assigned students
-                      </p>
-                      <DropPanel
-                        id={DROP_ROSTER_STUDENTS}
-                        acceptKind="student"
-                        activeDragKind={activeDragKind}
-                        emptyHint="Drag students from the right panel."
-                        isEmpty={rosterStudents.length === 0}
-                      >
-                        {rosterStudents.map((s) => (
-                          <div key={s.id} className="group relative">
-                            <StudentCard
-                              student={s}
-                              mode="drag"
-                              otherGroups={otherGroupsForStudent(s.id)}
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="icon-xs"
-                              className="text-destructive-foreground! absolute -top-1 -right-1 rounded-full bg-destructive! opacity-0 shadow transition-opacity group-hover:opacity-100 hover:bg-destructive/90!"
-                              aria-label={`Remove ${s.name}`}
-                              onClick={() =>
-                                removeStudentFromGroup(selectedGroupId!, s.id)
-                              }
-                            >
-                              <X />
-                            </Button>
+                          <div className="max-h-36 overflow-y-auto rounded-md border bg-background p-1">
+                            {addCandidateInstructors.length === 0 ? (
+                              <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                                No instructors match. Try search or “Show busy
+                                too”.
+                              </p>
+                            ) : (
+                              addCandidateInstructors.map((i) => {
+                                const busy = instructorOverlaps(i.id);
+                                return (
+                                  <Button
+                                    key={i.id}
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={busy}
+                                    title={
+                                      busy
+                                        ? "Already assigned at an overlapping time"
+                                        : `Add ${i.name}`
+                                    }
+                                    className="h-auto w-full justify-start gap-2 py-1.5 whitespace-normal"
+                                    onClick={() => {
+                                      if (!selectedGroupId || busy) return;
+                                      const r = addInstructorToGroup(
+                                        selectedGroupId,
+                                        i.id
+                                      );
+                                      if (!r.ok) notify(r.error);
+                                    }}
+                                  >
+                                    <span className="text-left font-medium">
+                                      {i.name}
+                                    </span>
+                                    {busy ? (
+                                      <Badge variant="destructive" className="shrink-0">
+                                        Busy
+                                      </Badge>
+                                    ) : null}
+                                  </Button>
+                                );
+                              })
+                            )}
                           </div>
-                        ))}
-                      </DropPanel>
+                        </div>
+                      ) : null}
                     </div>
-                  </>
-                ) : (
-                  <p className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
-                    Create or select a group to start assigning.
-                  </p>
-                )}
-              </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           </ResizablePanel>
+
           <ResizableHandle withHandle />
+
           <ResizablePanel
             id="gb-students"
-            defaultSize="25%"
-            minSize="22%"
+            defaultSize="35%"
+            minSize="24%"
             className="min-h-0 min-w-0 overflow-hidden"
           >
             <div className="flex h-full min-h-0 flex-col rounded-lg border shadow-sm">
-              <div className="border-b bg-muted/30 px-3 py-2">
-                <h3 className="text-xs font-semibold">Students</h3>
-                <p className="mt-0.5 text-[0.5625rem] leading-snug text-muted-foreground">
-                  Drag into the center to assign
-                </p>
-                <div className="mt-2 flex flex-col gap-1.5">
-                  <Input
-                    placeholder="Search..."
-                    value={studentQuery}
-                    onChange={(e) => setStudentQuery(e.target.value)}
-                  />
-                  <Select
-                    value={studentLevel}
-                    items={STUDENT_PANEL_LEVEL_LABELS}
-                    onValueChange={(v) => setStudentLevel(v ?? "all")}
+              <div className="space-y-2 border-b bg-muted/30 px-3 py-2">
+                <h3 className="text-xs font-semibold">Student pool</h3>
+                <Input
+                  placeholder="Search students…"
+                  value={studentQuery}
+                  onChange={(e) => setStudentQuery(e.target.value)}
+                  className="text-xs"
+                />
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    type="button"
+                    variant={studentLevel === "all" ? "default" : "outline"}
+                    size="xs"
+                    onClick={() => setStudentLevel("all")}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="all">All levels</SelectItem>
-                        {[1, 2, 3, 4, 5, 6].map((lv) => (
-                          <SelectItem key={lv} value={String(lv)}>
-                            Level {lv}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                    All
+                  </Button>
+                  {LEVELS.map((lv) => (
+                    <Button
+                      key={lv}
+                      type="button"
+                      variant={
+                        studentLevel === String(lv) ? "default" : "outline"
+                      }
+                      size="xs"
+                      onClick={() => setStudentLevel(String(lv))}
+                    >
+                      Lv{lv}
+                    </Button>
+                  ))}
                 </div>
+                {selectedGroup ? (
+                  <Button
+                    type="button"
+                    variant={showOnlyMatchingStudents ? "default" : "outline"}
+                    size="xs"
+                    onClick={() =>
+                      setShowOnlyMatchingStudents((v) => !v)
+                    }
+                  >
+                    {showOnlyMatchingStudents
+                      ? "Only age/discipline fit"
+                      : "Show everyone"}
+                  </Button>
+                ) : null}
               </div>
+
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 <DropPanel
                   id={DROP_POOL_STUDENTS}
-                  acceptKind="student"
-                  activeDragKind={activeDragKind}
-                  emptyHint="All students are assigned to this group."
+                  zone="pool"
+                  isDragging={activeDrag != null}
+                  emptyHint="No students match. Clear search or turn off “only fit”."
                   isEmpty={filteredPoolStudents.length === 0}
                 >
-                  {filteredPoolStudents.map((s) => (
-                    <StudentCard
-                      key={s.id}
-                      student={s}
-                      mode="drag"
-                      otherGroups={otherGroupsForStudent(s.id)}
-                    />
-                  ))}
+                  {filteredPoolStudents.map((s) => {
+                    const eligible =
+                      selectedGroup != null &&
+                      studentEligibleForSelectedGroup(s);
+                    const dragOff =
+                      selectedGroup != null && !eligible;
+                    return (
+                      <div key={s.id} className="group relative">
+                        <StudentCard
+                          student={s}
+                          mode="drag"
+                          workspaceSlot={workspaceSlot}
+                          otherGroups={otherGroupsForStudent(s.id)}
+                          density="compact"
+                          dragDisabled={dragOff}
+                        />
+                        {selectedGroupId && eligible ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="icon-xs"
+                            className="absolute -top-1 -right-1 rounded-full opacity-0 shadow transition-opacity group-hover:opacity-100"
+                            aria-label={`Add ${s.name} to group`}
+                            onClick={() => {
+                              const r = addStudentToGroup(
+                                selectedGroupId,
+                                s.id
+                              );
+                              if (!r.ok) notify(r.error);
+                            }}
+                          >
+                            <Plus />
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </DropPanel>
               </div>
             </div>
@@ -853,11 +803,8 @@ function GroupBuilder({
       </div>
 
       <DragOverlay dropAnimation={null}>
-        {activeDrag?.kind === "student" ? (
+        {activeDrag ? (
           <StudentCard student={activeDrag.student} mode="static" />
-        ) : null}
-        {activeDrag?.kind === "instructor" ? (
-          <InstructorCard instructor={activeDrag.instructor} mode="static" />
         ) : null}
       </DragOverlay>
     </DndContext>

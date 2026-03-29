@@ -1,8 +1,15 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
 
-import type { Student, StudentLevel } from "@/lib/ski-school/types";
-import { studentFormRawSchema } from "@/lib/ski-school/schemas";
+import type {
+  Discipline,
+  Student,
+  StudentLevel,
+} from "@/lib/ski-school/types";
+import {
+  studentFormFieldSchemas,
+  studentFormRawSchema,
+} from "@/lib/ski-school/schemas";
 import { AppDialog } from "@/components/ui/app-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +37,24 @@ const emptyDefaults = {
   name: "",
   age: "6",
   level: 1 as StudentLevel,
+  discipline: "ski" as Discipline,
   medicalInfo: "",
   parentName: "",
   parentPhone: "",
   parentEmail: "",
   notes: "",
 };
+
+function fieldErrorMessage(errors: ReadonlyArray<unknown>): string | null {
+  if (!errors.length) return null;
+  const first = errors[0];
+  if (typeof first === "string") return first;
+  if (first && typeof first === "object" && "message" in first) {
+    const m = (first as { message?: string }).message;
+    if (m) return m;
+  }
+  return "Invalid value";
+}
 
 function StudentFormDialog({
   open,
@@ -62,6 +81,7 @@ function StudentFormDialog({
         id: initial?.id,
         name: v.name.trim(),
         age: Math.round(Number(v.age)),
+        discipline: v.discipline,
         level: v.level,
         medicalInfo: v.medicalInfo.trim(),
         parentName: v.parentName.trim(),
@@ -81,6 +101,7 @@ function StudentFormDialog({
         name: initial.name,
         age: String(initial.age),
         level: initial.level,
+        discipline: initial.discipline,
         medicalInfo: initial.medicalInfo,
         parentName: initial.parentName,
         parentPhone: initial.parentPhone,
@@ -111,35 +132,72 @@ function StudentFormDialog({
             {submitError}
           </p>
         ) : null}
-        <form.Field name="name">
-          {(field) => (
-            <div className="grid gap-1.5">
-              <Label htmlFor="stu-name">Name</Label>
-              <Input
-                id="stu-name"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                autoComplete="name"
-              />
-            </div>
-          )}
-        </form.Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <form.Field name="age">
-            {(field) => (
+        <form.Field
+          name="name"
+          validators={{
+            onBlur: ({ value }) => {
+              const r = studentFormFieldSchemas.name.safeParse(value);
+              return r.success ? undefined : r.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => {
+            const err = fieldErrorMessage(field.state.meta.errors);
+            return (
               <div className="grid gap-1.5">
-                <Label htmlFor="stu-age">Age</Label>
+                <Label htmlFor="stu-name">Name</Label>
                 <Input
-                  id="stu-age"
+                  id="stu-name"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  inputMode="numeric"
+                  autoComplete="name"
+                  aria-invalid={Boolean(err)}
                 />
+                {err ? (
+                  <p className="text-xs font-medium text-destructive" role="status">
+                    {err}
+                  </p>
+                ) : null}
               </div>
-            )}
+            );
+          }}
+        </form.Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <form.Field
+            name="age"
+            validators={{
+              onBlur: ({ value }) => {
+                const r = studentFormFieldSchemas.age.safeParse(value);
+                return r.success ? undefined : r.error.issues[0]?.message;
+              },
+            }}
+          >
+            {(field) => {
+              const err = fieldErrorMessage(field.state.meta.errors);
+              return (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="stu-age">Age (4–12)</Label>
+                  <Input
+                    id="stu-age"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    inputMode="numeric"
+                    aria-invalid={Boolean(err)}
+                  />
+                  {err ? (
+                    <p
+                      className="text-xs font-medium text-destructive"
+                      role="status"
+                    >
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </form.Field>
 
           <form.Field name="level">
@@ -148,9 +206,10 @@ function StudentFormDialog({
                 <Label>Level (1-6)</Label>
                 <Select
                   value={String(field.state.value)}
-                  onValueChange={(v) =>
-                    field.handleChange(Number(v) as StudentLevel)
-                  }
+                  onValueChange={(v) => {
+                    if (v == null) return;
+                    field.handleChange(Number(v) as StudentLevel);
+                  }}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -170,19 +229,77 @@ function StudentFormDialog({
           </form.Field>
         </div>
 
-        <form.Field name="medicalInfo">
-          {(field) => (
-            <div className="grid gap-1.5">
-              <Label htmlFor="stu-medical">Medical info</Label>
-              <Textarea
-                id="stu-medical"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                rows={2}
-              />
-            </div>
-          )}
+        <form.Field
+          name="discipline"
+          validators={{
+            onBlur: ({ value }) => {
+              const r = studentFormFieldSchemas.discipline.safeParse(value);
+              return r.success ? undefined : r.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => {
+            const err = fieldErrorMessage(field.state.meta.errors);
+            return (
+              <div className="grid gap-1.5">
+                <Label>Discipline</Label>
+                <Select
+                  value={field.state.value}
+                  onValueChange={(v) => {
+                    if (v == null) return;
+                    field.handleChange(v as Discipline);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="ski">Ski</SelectItem>
+                      <SelectItem value="snowboard">Snowboard</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {err ? (
+                  <p className="text-xs font-medium text-destructive" role="status">
+                    {err}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }}
+        </form.Field>
+
+        <form.Field
+          name="medicalInfo"
+          validators={{
+            onBlur: ({ value }) => {
+              const r = studentFormFieldSchemas.medicalInfo.safeParse(value);
+              return r.success ? undefined : r.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => {
+            const err = fieldErrorMessage(field.state.meta.errors);
+            return (
+              <div className="grid gap-1.5">
+                <Label htmlFor="stu-medical">Medical info</Label>
+                <Textarea
+                  id="stu-medical"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  rows={2}
+                  aria-invalid={Boolean(err)}
+                />
+                {err ? (
+                  <p className="text-xs font-medium text-destructive" role="status">
+                    {err}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }}
         </form.Field>
 
         <form.Field name="parentName">
@@ -200,55 +317,112 @@ function StudentFormDialog({
         </form.Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <form.Field name="parentPhone">
-            {(field) => (
-              <div className="grid gap-1.5">
-                <Label htmlFor="stu-phone">Parent phone</Label>
-                <Input
-                  id="stu-phone"
-                  type="tel"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  autoComplete="tel"
-                />
-              </div>
-            )}
+          <form.Field
+            name="parentPhone"
+            validators={{
+              onBlur: ({ value }) => {
+                const r = studentFormFieldSchemas.parentPhone.safeParse(value);
+                return r.success ? undefined : r.error.issues[0]?.message;
+              },
+            }}
+          >
+            {(field) => {
+              const err = fieldErrorMessage(field.state.meta.errors);
+              return (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="stu-phone">Parent phone</Label>
+                  <Input
+                    id="stu-phone"
+                    type="tel"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    autoComplete="tel"
+                    aria-invalid={Boolean(err)}
+                  />
+                  {err ? (
+                    <p
+                      className="text-xs font-medium text-destructive"
+                      role="status"
+                    >
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </form.Field>
 
-          <form.Field name="parentEmail">
-            {(field) => (
-              <div className="grid gap-1.5">
-                <Label htmlFor="stu-email">Parent email</Label>
-                <Input
-                  id="stu-email"
-                  type="email"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  autoComplete="email"
-                />
-              </div>
-            )}
+          <form.Field
+            name="parentEmail"
+            validators={{
+              onBlur: ({ value }) => {
+                const r = studentFormFieldSchemas.parentEmail.safeParse(value);
+                return r.success ? undefined : r.error.issues[0]?.message;
+              },
+            }}
+          >
+            {(field) => {
+              const err = fieldErrorMessage(field.state.meta.errors);
+              return (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="stu-email">Parent email</Label>
+                  <Input
+                    id="stu-email"
+                    type="email"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    autoComplete="email"
+                    aria-invalid={Boolean(err)}
+                  />
+                  {err ? (
+                    <p
+                      className="text-xs font-medium text-destructive"
+                      role="status"
+                    >
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
           </form.Field>
         </div>
         <p className="text-[0.625rem] leading-snug text-muted-foreground">
           At least one of phone or email is required.
         </p>
 
-        <form.Field name="notes">
-          {(field) => (
-            <div className="grid gap-1.5">
-              <Label htmlFor="stu-notes">Placement notes</Label>
-              <Textarea
-                id="stu-notes"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                rows={3}
-              />
-            </div>
-          )}
+        <form.Field
+          name="notes"
+          validators={{
+            onBlur: ({ value }) => {
+              const r = studentFormFieldSchemas.notes.safeParse(value);
+              return r.success ? undefined : r.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => {
+            const err = fieldErrorMessage(field.state.meta.errors);
+            return (
+              <div className="grid gap-1.5">
+                <Label htmlFor="stu-notes">Placement notes</Label>
+                <Textarea
+                  id="stu-notes"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  rows={3}
+                  aria-invalid={Boolean(err)}
+                />
+                {err ? (
+                  <p className="text-xs font-medium text-destructive" role="status">
+                    {err}
+                  </p>
+                ) : null}
+              </div>
+            );
+          }}
         </form.Field>
 
         <div className="mt-1 flex justify-end gap-2">
