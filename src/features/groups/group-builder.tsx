@@ -6,14 +6,13 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { Plus, Trash, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import type { ReactNode } from "react";
 import type {
   Discipline,
-  GroupAgeRange,
   Instructor,
   LessonGroup,
   LessonTimeSlot,
@@ -25,6 +24,8 @@ import {
   DROP_POOL_STUDENTS,
   DROP_ROSTER_STUDENTS,
   GROUP_AGE_RANGES,
+  comparePersonName,
+  formatFullName,
   parseDragPayload,
 } from "@/lib/ski-school/types";
 
@@ -74,10 +75,8 @@ const GROUP_BUILDER_LEVEL_ITEMS: Record<string, string> = Object.fromEntries(
   LEVELS.map((lv) => [String(lv), `Lv${lv}`])
 ) as Record<string, string>;
 
-const GROUP_BUILDER_AGE_ITEMS: Record<GroupAgeRange, string> = {
-  "4-6": "Ages 4–6",
-  "7-12": "Ages 7–12",
-};
+/** Muted icon/text; hover switches to destructive (group builder remove actions). */
+const GROUP_BUILDER_DELETE_STYLE = "text-muted-foreground hover:text-destructive";
 
 type DropPanelProps = {
   id: string;
@@ -320,7 +319,7 @@ function GroupBuilder({
       const ba = busy(a);
       const bb = busy(b);
       if (ba !== bb) return ba ? 1 : -1;
-      return a.name.localeCompare(b.name);
+      return comparePersonName(a, b);
     });
     if (showUnavailableInstructors) return ranked;
     return ranked.filter((i) => !busy(i));
@@ -368,9 +367,10 @@ function GroupBuilder({
           <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3 shadow-sm">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold leading-tight">
-                {formatGroupIdentity(selectedGroup, (id) =>
-                  getInstructor(id)?.name
-                )}
+                {formatGroupIdentity(selectedGroup, (id) => {
+                  const ins = getInstructor(id);
+                  return ins ? formatFullName(ins) : undefined;
+                })}
               </p>
               <div className="mt-1 flex flex-wrap gap-1">
                 <Badge variant="muted">
@@ -436,7 +436,6 @@ function GroupBuilder({
               <Label className="text-[0.625rem]">Ages</Label>
               <Select
                 value={selectedGroup.ageRange}
-                items={GROUP_BUILDER_AGE_ITEMS}
                 onValueChange={(v) => {
                   if (v == null) return;
                   applySchedulePatch(selectedGroup.id, {
@@ -451,7 +450,7 @@ function GroupBuilder({
                   <SelectGroup>
                     {GROUP_AGE_RANGES.map((ar) => (
                       <SelectItem key={ar} value={ar}>
-                        {GROUP_BUILDER_AGE_ITEMS[ar]}
+                        {ar}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -460,8 +459,12 @@ function GroupBuilder({
             </div>
             <Button
               type="button"
-              variant="destructive"
+              variant="ghost"
               size="sm"
+              className={cn(
+                "shrink-0 gap-1.5",
+                GROUP_BUILDER_DELETE_STYLE
+              )}
               onClick={() => {
                 const id = selectedGroupId!;
                 const remaining = groups.filter((g) => g.id !== id);
@@ -469,7 +472,8 @@ function GroupBuilder({
                 onSelectedGroupIdChange(remaining[0]?.id ?? null);
               }}
             >
-              Delete group
+              <Trash2 className="size-3.5 shrink-0" aria-hidden />
+              <span>Delete group</span>
             </Button>
           </div>
         ) : (
@@ -525,15 +529,18 @@ function GroupBuilder({
                           />
                           <Button
                             type="button"
-                            variant="destructive"
-                            size="icon-xs"
-                            className="text-destructive-foreground! absolute -top-1 -right-1 rounded-full bg-destructive! opacity-0 shadow transition-opacity group-hover:opacity-100 hover:bg-destructive/90!"
-                            aria-label={`Remove ${s.name}`}
+                            variant="ghost"
+                            size="icon-sm"
+                            className={cn(
+                              "absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100",
+                              GROUP_BUILDER_DELETE_STYLE
+                            )}
+                            aria-label={`Remove ${formatFullName(s)} from group`}
                             onClick={() =>
                               removeStudentFromGroup(selectedGroupId!, s.id)
                             }
                           >
-                            <Trash className="size-3.5" />
+                            <Trash2 className="size-4" aria-hidden />
                           </Button>
                         </div>
                       ))}
@@ -562,7 +569,7 @@ function GroupBuilder({
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-xs font-medium">
-                                  {i.name}
+                                  {formatFullName(i)}
                                 </span>
                                 {isLead ? <Badge>Lead</Badge> : null}
                                 {i.disciplines.map((d) => (
@@ -596,8 +603,8 @@ function GroupBuilder({
                                 type="button"
                                 variant="ghost"
                                 size="icon-xs"
-                                className="text-muted-foreground hover:text-destructive"
-                                aria-label={`Remove ${i.name}`}
+                                className={GROUP_BUILDER_DELETE_STYLE}
+                                aria-label={`Remove ${formatFullName(i)}`}
                                 onClick={() =>
                                   removeInstructorFromGroup(
                                     selectedGroupId!,
@@ -605,7 +612,7 @@ function GroupBuilder({
                                   )
                                 }
                               >
-                                <Trash2 />
+                                <Trash2 aria-hidden />
                               </Button>
                             </div>
                           </div>
@@ -660,7 +667,7 @@ function GroupBuilder({
                                     title={
                                       busy
                                         ? "Already assigned at an overlapping time"
-                                        : `Add ${i.name}`
+                                        : `Add ${formatFullName(i)}`
                                     }
                                     className="h-auto w-full justify-start gap-2 py-1.5 whitespace-normal"
                                     onClick={() => {
@@ -673,7 +680,7 @@ function GroupBuilder({
                                     }}
                                   >
                                     <span className="text-left font-medium">
-                                      {i.name}
+                                      {formatFullName(i)}
                                     </span>
                                     {busy ? (
                                       <Badge variant="destructive" className="shrink-0">
@@ -780,7 +787,7 @@ function GroupBuilder({
                             variant="default"
                             size="icon-xs"
                             className="absolute -top-1 -right-1 rounded-full opacity-0 shadow transition-opacity group-hover:opacity-100"
-                            aria-label={`Add ${s.name} to group`}
+                            aria-label={`Add ${formatFullName(s)} to group`}
                             onClick={() => {
                               const r = addStudentToGroup(
                                 selectedGroupId,

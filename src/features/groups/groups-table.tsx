@@ -10,7 +10,13 @@ import { ExternalLink, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SortingState } from "@tanstack/react-table";
 
-import type { LessonGroup, LessonTimeSlot, Weekday } from "@/lib/ski-school/types";
+import type {LessonGroup, LessonTimeSlot, Weekday} from "@/lib/ski-school/types";
+import {
+  
+  
+  
+  formatFullName
+} from "@/lib/ski-school/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
@@ -71,10 +77,11 @@ function GroupsTable({ activeGroupId, onOpenInBuilder }: GroupsTableProps) {
         return false;
       }
       if (!q) return true;
-      const leadName =
+      const lead =
         g.leadInstructorId != null
-          ? (getInstructor(g.leadInstructorId)?.name ?? "")
-          : "";
+          ? getInstructor(g.leadInstructorId)
+          : undefined;
+      const leadName = lead ? formatFullName(lead) : "";
       const hay =
         `${g.day} ${g.time} ${g.discipline} ${g.level} ${g.ageRange} ${leadName} ${g.notes} ${g.studentIds.length} ${g.instructorIds.length}`
           .toLowerCase()
@@ -147,10 +154,13 @@ function GroupsTable({ activeGroupId, onOpenInBuilder }: GroupsTableProps) {
         ),
       }),
       col.accessor(
-        (row) =>
-          row.leadInstructorId != null
-            ? (getInstructor(row.leadInstructorId)?.name ?? "")
-            : "",
+        (row) => {
+          const ins =
+            row.leadInstructorId != null
+              ? getInstructor(row.leadInstructorId)
+              : undefined;
+          return ins ? formatFullName(ins) : "";
+        },
         {
           id: "lead",
           header: ({ column }) => (
@@ -159,10 +169,11 @@ function GroupsTable({ activeGroupId, onOpenInBuilder }: GroupsTableProps) {
           size: 140,
           cell: (info) => {
             const g = info.row.original;
-            const name =
+            const ins =
               g.leadInstructorId != null
-                ? (getInstructor(g.leadInstructorId)?.name ?? "—")
-                : "—";
+                ? getInstructor(g.leadInstructorId)
+                : undefined;
+            const name = ins ? formatFullName(ins) : "—";
             return <span className="text-foreground/90">{name}</span>;
           },
         }
@@ -223,6 +234,7 @@ function GroupsTable({ activeGroupId, onOpenInBuilder }: GroupsTableProps) {
                 type="button"
                 variant="ghost"
                 size="icon-xs"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (
@@ -234,7 +246,7 @@ function GroupsTable({ activeGroupId, onOpenInBuilder }: GroupsTableProps) {
                 }}
                 aria-label="Delete group"
               >
-                <Trash2 className="size-3 text-destructive" />
+                <Trash2 aria-hidden />
               </Button>
             </div>
           );

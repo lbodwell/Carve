@@ -34,7 +34,8 @@ type StudentFormDialogProps = {
 };
 
 const emptyDefaults = {
-  name: "",
+  firstName: "",
+  lastName: "",
   age: "6",
   level: 1 as StudentLevel,
   discipline: "ski" as Discipline,
@@ -79,7 +80,8 @@ function StudentFormDialog({
       const v = parsed.data;
       upsertStudent({
         id: initial?.id,
-        name: v.name.trim(),
+        firstName: v.firstName.trim(),
+        lastName: v.lastName.trim(),
         age: Math.round(Number(v.age)),
         discipline: v.discipline,
         level: v.level,
@@ -98,7 +100,8 @@ function StudentFormDialog({
     setSubmitError(null);
     if (initial) {
       form.reset({
-        name: initial.name,
+        firstName: initial.firstName,
+        lastName: initial.lastName,
         age: String(initial.age),
         level: initial.level,
         discipline: initial.discipline,
@@ -132,37 +135,76 @@ function StudentFormDialog({
             {submitError}
           </p>
         ) : null}
-        <form.Field
-          name="name"
-          validators={{
-            onBlur: ({ value }) => {
-              const r = studentFormFieldSchemas.name.safeParse(value);
-              return r.success ? undefined : r.error.issues[0]?.message;
-            },
-          }}
-        >
-          {(field) => {
-            const err = fieldErrorMessage(field.state.meta.errors);
-            return (
-              <div className="grid gap-1.5">
-                <Label htmlFor="stu-name">Name</Label>
-                <Input
-                  id="stu-name"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  autoComplete="name"
-                  aria-invalid={Boolean(err)}
-                />
-                {err ? (
-                  <p className="text-xs font-medium text-destructive" role="status">
-                    {err}
-                  </p>
-                ) : null}
-              </div>
-            );
-          }}
-        </form.Field>
+        <div className="grid grid-cols-2 gap-3">
+          <form.Field
+            name="firstName"
+            validators={{
+              onBlur: ({ value }) => {
+                const r = studentFormFieldSchemas.firstName.safeParse(value);
+                return r.success ? undefined : r.error.issues[0]?.message;
+              },
+            }}
+          >
+            {(field) => {
+              const err = fieldErrorMessage(field.state.meta.errors);
+              return (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="stu-first-name">First name</Label>
+                  <Input
+                    id="stu-first-name"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    autoComplete="given-name"
+                    aria-invalid={Boolean(err)}
+                  />
+                  {err ? (
+                    <p
+                      className="text-xs font-medium text-destructive"
+                      role="status"
+                    >
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
+          </form.Field>
+          <form.Field
+            name="lastName"
+            validators={{
+              onBlur: ({ value }) => {
+                const r = studentFormFieldSchemas.lastName.safeParse(value);
+                return r.success ? undefined : r.error.issues[0]?.message;
+              },
+            }}
+          >
+            {(field) => {
+              const err = fieldErrorMessage(field.state.meta.errors);
+              return (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="stu-last-name">Last name</Label>
+                  <Input
+                    id="stu-last-name"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    autoComplete="family-name"
+                    aria-invalid={Boolean(err)}
+                  />
+                  {err ? (
+                    <p
+                      className="text-xs font-medium text-destructive"
+                      role="status"
+                    >
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
+          </form.Field>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <form.Field

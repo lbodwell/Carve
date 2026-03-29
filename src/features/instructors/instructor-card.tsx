@@ -1,12 +1,14 @@
 import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 
-import type {
-  Discipline,
-  Instructor,
-  LessonGroup,
-  LessonTimeSlot,
-  Weekday,
+import type {Discipline, Instructor, LessonGroup, LessonTimeSlot, Weekday} from "@/lib/ski-school/types";
+import {
+  
+  
+  
+  
+  
+  formatFullName
 } from "@/lib/ski-school/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,7 +83,7 @@ function InstructorCard({
                 variant="ghost"
                 size="icon-sm"
                 className="mt-0.5 h-auto cursor-grab px-0.5 py-0 text-muted-foreground hover:text-foreground active:cursor-grabbing"
-                aria-label={`Drag ${instructor.name}`}
+                aria-label={`Drag ${formatFullName(instructor)}`}
                 {...listeners}
                 {...attributes}
               >
@@ -96,7 +98,7 @@ function InstructorCard({
                     density === "compact" ? "text-xs" : "text-sm"
                   )}
                 >
-                  {instructor.name}
+                  {formatFullName(instructor)}
                 </p>
                 {isLead ? (
                   <Badge variant="default" className="text-[0.5625rem]">
@@ -117,10 +119,10 @@ function InstructorCard({
               {otherGroups.length > 0 ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {otherGroups.map((g) => {
-                    const label = formatGroupIdentity(
-                      g,
-                      (id) => getInstructor(id)?.name
-                    );
+                    const label = formatGroupIdentity(g, (id) => {
+                      const ins = getInstructor(id);
+                      return ins ? formatFullName(ins) : undefined;
+                    });
                     const isSlotConflict = Boolean(
                       workspaceSlot &&
                         schedulesOverlap(

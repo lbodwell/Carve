@@ -11,7 +11,12 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SortingState } from "@tanstack/react-table";
 
-import type { Discipline, Instructor } from "@/lib/ski-school/types";
+import type {Discipline, Instructor} from "@/lib/ski-school/types";
+import {
+  
+  
+  formatFullName
+} from "@/lib/ski-school/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,11 +65,18 @@ function InstructorsPage() {
 
   const columns = useMemo(
     () => [
-      col.accessor("name", {
+      col.accessor("firstName", {
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Name" />
+          <DataTableColumnHeader column={column} title="First name" />
         ),
-        size: 160,
+        size: 110,
+        cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+      }),
+      col.accessor("lastName", {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Last name" />
+        ),
+        size: 120,
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
       col.accessor("disciplines", {
@@ -136,7 +148,7 @@ function InstructorsPage() {
                   setEditing(i);
                   setDialogOpen(true);
                 }}
-                aria-label={`Edit ${i.name}`}
+                aria-label={`Edit ${formatFullName(i)}`}
               >
                 <Pencil />
               </Button>
@@ -144,15 +156,20 @@ function InstructorsPage() {
                 type="button"
                 variant="ghost"
                 size="icon-xs"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Remove ${i.name} from the roster?`)) {
+                  if (
+                    window.confirm(
+                      `Remove ${formatFullName(i)} from the roster?`
+                    )
+                  ) {
                     removeInstructor(i.id);
                   }
                 }}
-                aria-label={`Delete ${i.name}`}
+                aria-label={`Delete ${formatFullName(i)}`}
               >
-                <Trash2 className="text-destructive" />
+                <Trash2 aria-hidden />
               </Button>
             </div>
           );

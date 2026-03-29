@@ -7,12 +7,17 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Pencil, Plus, Trash } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SortingState } from "@tanstack/react-table";
 
-import type { Discipline, Student } from "@/lib/ski-school/types";
 import type { StudentFilterOptions } from "@/lib/ski-school/roster-filters";
+import type {Discipline, Student} from "@/lib/ski-school/types";
+import {
+  
+  
+  formatFullName
+} from "@/lib/ski-school/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,11 +89,18 @@ function StudentsPage() {
 
   const columns = useMemo(
     () => [
-      col.accessor("name", {
+      col.accessor("firstName", {
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Name" />
+          <DataTableColumnHeader column={column} title="First name" />
         ),
-        size: 140,
+        size: 110,
+        cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+      }),
+      col.accessor("lastName", {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Last name" />
+        ),
+        size: 120,
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
       col.accessor("age", {
@@ -201,7 +213,7 @@ function StudentsPage() {
                   setEditing(s);
                   setDialogOpen(true);
                 }}
-                aria-label={`Edit ${s.name}`}
+                aria-label={`Edit ${formatFullName(s)}`}
               >
                 <Pencil />
               </Button>
@@ -209,15 +221,20 @@ function StudentsPage() {
                 type="button"
                 variant="ghost"
                 size="icon-xs"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Remove ${s.name} from the roster?`)) {
+                  if (
+                    window.confirm(
+                      `Remove ${formatFullName(s)} from the roster?`
+                    )
+                  ) {
                     removeStudent(s.id);
                   }
                 }}
-                aria-label={`Delete ${s.name}`}
+                aria-label={`Delete ${formatFullName(s)}`}
               >
-                <Trash className="size-3.5 text-destructive" />
+                <Trash2 aria-hidden />
               </Button>
             </div>
           );

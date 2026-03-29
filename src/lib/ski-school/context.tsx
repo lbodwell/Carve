@@ -17,8 +17,15 @@ import {
   instructorHasOverlappingAssignment,
   studentHasOverlappingAssignment,
 } from "./schedule";
+import {
+  
+  
+  
+  comparePersonName,
+  formatFullName
+} from "./types";
+import type {Instructor, LessonGroup, Student} from "./types";
 import type { ReactNode } from "react";
-import type { Instructor, LessonGroup, Student } from "./types";
 
 function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
@@ -118,7 +125,8 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
       const next = input.id ? prev.filter((s) => s.id !== input.id) : prev;
       const row: Student = {
         id,
-        name: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
         age: input.age,
         discipline: input.discipline,
         level: input.level,
@@ -128,7 +136,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         parentEmail: input.parentEmail,
         notes: input.notes,
       };
-      return [...next, row].sort((a, b) => a.name.localeCompare(b.name));
+      return [...next, row].sort(comparePersonName);
     });
     return id;
   }, []);
@@ -149,13 +157,14 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
       const next = input.id ? prev.filter((i) => i.id !== input.id) : prev;
       const row: Instructor = {
         id,
-        name: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
         phone: input.phone,
         email: input.email,
         disciplines: [...input.disciplines],
         notes: input.notes,
       };
-      return [...next, row].sort((a, b) => a.name.localeCompare(b.name));
+      return [...next, row].sort(comparePersonName);
     });
     return id;
   }, []);
@@ -245,7 +254,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         if (!studentFitsGroup(s, g)) {
           result = {
             ok: false,
-            error: `${s.name} doesn’t match this lesson’s age range or discipline.`,
+            error: `${formatFullName(s)} doesn’t match this lesson’s age range or discipline.`,
           };
           return prev;
         }
@@ -254,7 +263,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         ) {
           result = {
             ok: false,
-            error: `${s.name} is already in another lesson at an overlapping time.`,
+            error: `${formatFullName(s)} is already in another lesson at an overlapping time.`,
           };
           return prev;
         }
@@ -300,7 +309,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         if (!instructorFitsGroup(ins, g)) {
           result = {
             ok: false,
-            error: `${ins.name} doesn’t teach ${g.discipline === "ski" ? "ski" : "snowboard"}.`,
+            error: `${formatFullName(ins)} doesn’t teach ${g.discipline === "ski" ? "ski" : "snowboard"}.`,
           };
           return prev;
         }
@@ -315,7 +324,7 @@ export function SkiSchoolProvider({ children }: { children: ReactNode }) {
         ) {
           result = {
             ok: false,
-            error: `${ins.name} is already in another lesson at an overlapping time.`,
+            error: `${formatFullName(ins)} is already in another lesson at an overlapping time.`,
           };
           return prev;
         }

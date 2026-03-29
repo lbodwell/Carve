@@ -5,16 +5,18 @@ import {
   STUDENT_FAMILY_NAMES,
   STUDENT_FIRST_NAMES,
 } from "./seed-names";
-import type {
-  Discipline,
-  GroupAgeRange,
-  Instructor,
-  LessonGroup,
-  LessonTimeSlot,
-  Student,
-  StudentLevel,
-  Weekday,
+import {
+  
+  
+  
+  
+  
+  
+  
+  
+  comparePersonName
 } from "./types";
+import type {Discipline, GroupAgeRange, Instructor, LessonGroup, LessonTimeSlot, Student, StudentLevel, Weekday} from "./types";
 
 function emailLocalPart(prefix: string, suffix: string): string {
   const a = prefix.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -104,10 +106,10 @@ function buildStudents(rand: () => number): Array<Student> {
       MEDICAL_SAMPLES[Math.floor(rand() * MEDICAL_SAMPLES.length)] ?? "";
     const fn = STUDENT_FIRST_NAMES[i - 1];
     const ln = STUDENT_FAMILY_NAMES[i - 1];
-    const name = `${fn} ${ln}`;
     out.push({
       id: `stu-${String(i).padStart(3, "0")}`,
-      name,
+      firstName: fn,
+      lastName: ln,
       age,
       discipline,
       level,
@@ -123,7 +125,7 @@ function buildStudents(rand: () => number): Array<Student> {
             : "Prefers verbal cues; helmet cam opt-out.",
     });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.sort(comparePersonName);
 }
 
 function buildInstructors(rand: () => number): Array<Instructor> {
@@ -139,7 +141,8 @@ function buildInstructors(rand: () => number): Array<Instructor> {
     const ln = INSTRUCTOR_FAMILY_NAMES[i - 1];
     out.push({
       id: `ins-${String(i).padStart(2, "0")}`,
-      name: `${fn} ${ln}`,
+      firstName: fn,
+      lastName: ln,
       phone: formatStaffPhone(i * 131),
       email: `${emailLocalPart(fn, ln)}${i}@alpineschool.example`,
       disciplines,
@@ -151,7 +154,7 @@ function buildInstructors(rand: () => number): Array<Instructor> {
             : "Beginner-friendly; clear switch drills.",
     });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.sort(comparePersonName);
 }
 
 function hasOverlap(

@@ -41,10 +41,14 @@ const emailSchema = z.string().refine(
 );
 
 export const studentFormFieldSchemas = {
-  name: z
+  firstName: z
     .string()
-    .min(1, "Name is required")
-    .max(200, "Name is too long"),
+    .min(1, "First name is required")
+    .max(100, "First name is too long"),
+  lastName: z
+    .string()
+    .min(1, "Last name is required")
+    .max(100, "Last name is too long"),
   age: z
     .string()
     .min(1, "Age is required")
@@ -69,14 +73,16 @@ export const studentFormFieldSchemas = {
   notes: z.string().max(5000, "Notes are too long"),
 } as const;
 
-export const studentNameSchema = studentFormFieldSchemas.name;
+export const studentFirstNameSchema = studentFormFieldSchemas.firstName;
+export const studentLastNameSchema = studentFormFieldSchemas.lastName;
 export const studentAgeInputSchema = studentFormFieldSchemas.age;
 export const studentDisciplineSchema = studentFormFieldSchemas.discipline;
 
 /** Raw form shape before coercion (age as string from inputs). */
 export const studentFormRawSchema = z
   .object({
-    name: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
     age: z.string(),
     level: studentLevelSchema,
     discipline: disciplineSchema,
@@ -86,9 +92,13 @@ export const studentFormRawSchema = z
     parentEmail: emailSchema,
     notes: z.string(),
   })
-  .refine((d) => d.name.trim().length > 0, {
-    message: "Name is required",
-    path: ["name"],
+  .refine((d) => d.firstName.trim().length > 0, {
+    message: "First name is required",
+    path: ["firstName"],
+  })
+  .refine((d) => d.lastName.trim().length > 0, {
+    message: "Last name is required",
+    path: ["lastName"],
   })
   .refine(
     (d) => {
@@ -106,10 +116,14 @@ export const studentFormRawSchema = z
   );
 
 export const instructorFormFieldSchemas = {
-  name: z
+  firstName: z
     .string()
-    .min(1, "Name is required")
-    .max(200, "Name is too long"),
+    .min(1, "First name is required")
+    .max(100, "First name is too long"),
+  lastName: z
+    .string()
+    .min(1, "Last name is required")
+    .max(100, "Last name is too long"),
   phone: phoneSchema,
   email: emailSchema,
   notes: z.string().max(5000, "Notes are too long"),
@@ -119,16 +133,21 @@ export const instructorFormFieldSchemas = {
 
 export const instructorFormRawSchema = z
   .object({
-    name: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
     phone: phoneSchema,
     email: emailSchema,
     notes: z.string(),
     ski: z.boolean(),
     snowboard: z.boolean(),
   })
-  .refine((d) => d.name.trim().length > 0, {
-    message: "Name is required",
-    path: ["name"],
+  .refine((d) => d.firstName.trim().length > 0, {
+    message: "First name is required",
+    path: ["firstName"],
+  })
+  .refine((d) => d.lastName.trim().length > 0, {
+    message: "Last name is required",
+    path: ["lastName"],
   })
   .refine((d) => d.ski || d.snowboard, {
     message: "Select at least one discipline",

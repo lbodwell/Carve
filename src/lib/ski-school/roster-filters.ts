@@ -1,4 +1,12 @@
-import type { Discipline, GroupAgeRange, Instructor, Student } from "./types";
+import {
+  
+  
+  
+  
+  comparePersonName,
+  formatFullName
+} from "./types";
+import type {Discipline, GroupAgeRange, Instructor, Student} from "./types";
 
 export type StudentAgeBandFilter = "all" | GroupAgeRange;
 
@@ -9,11 +17,11 @@ export type StudentSortKey = "name" | "age" | "level";
 export type InstructorSortKey = "name" | "conflict";
 
 export function studentSearchHaystack(s: Student): string {
-  return `${s.name} ${s.notes} ${s.parentName} ${s.parentPhone} ${s.parentEmail} ${s.medicalInfo}`.toLowerCase();
+  return `${formatFullName(s)} ${s.firstName} ${s.lastName} ${s.notes} ${s.parentName} ${s.parentPhone} ${s.parentEmail} ${s.medicalInfo}`.toLowerCase();
 }
 
 export function instructorSearchHaystack(i: Instructor): string {
-  return `${i.name} ${i.notes} ${i.phone} ${i.email} ${i.disciplines.join(" ")}`.toLowerCase();
+  return `${formatFullName(i)} ${i.firstName} ${i.lastName} ${i.notes} ${i.phone} ${i.email} ${i.disciplines.join(" ")}`.toLowerCase();
 }
 
 export function studentAgeBand(age: number): GroupAgeRange | null {
@@ -119,10 +127,6 @@ export function matchesInstructorFilters(
   return instructorSearchHaystack(i).includes(q);
 }
 
-function cmpStr(a: string, b: string): number {
-  return a.localeCompare(b);
-}
-
 export function sortStudents(
   list: Array<Student>,
   key: StudentSortKey,
@@ -131,7 +135,7 @@ export function sortStudents(
   const m = dir === "desc" ? -1 : 1;
   return [...list].sort((a, b) => {
     let r = 0;
-    if (key === "name") r = cmpStr(a.name, b.name);
+    if (key === "name") r = comparePersonName(a, b);
     else if (key === "age") r = a.age - b.age;
     else r = a.level - b.level;
     return r * m;
@@ -151,6 +155,6 @@ export function sortInstructors(
       const cb = hasConflict(b.id) ? 1 : 0;
       if (ca !== cb) return (cb - ca) * m;
     }
-    return cmpStr(a.name, b.name) * m;
+    return comparePersonName(a, b) * m;
   });
 }

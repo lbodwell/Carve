@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import type { LessonTimeSlot, Weekday } from "@/lib/ski-school/types";
+import { formatFullName } from "@/lib/ski-school/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,11 @@ const WEEKDAYS = [
   "Sun",
 ] as const satisfies ReadonlyArray<Weekday>;
 
-const TIME_SLOTS = ["AM", "PM", "FULL_DAY"] as const satisfies ReadonlyArray<LessonTimeSlot>;
+const TIME_SLOTS = [
+  "AM",
+  "PM",
+  "FULL_DAY",
+] as const satisfies ReadonlyArray<LessonTimeSlot>;
 
 const WORKSPACE_DAY_ITEMS: Record<Weekday, string> = {
   Mon: "Monday",
@@ -85,11 +90,7 @@ function GroupsPage() {
   const effectiveGroupId = useMemo(() => {
     if (search.groupId) {
       const g = getGroup(search.groupId);
-      if (
-        g &&
-        g.day === workspaceDay &&
-        g.time === workspaceTime
-      ) {
+      if (g && g.day === workspaceDay && g.time === workspaceTime) {
         return search.groupId;
       }
     }
@@ -154,7 +155,9 @@ function GroupsPage() {
     });
   };
 
-  const openGroupInWorkspace = (g: Parameters<typeof formatGroupIdentity>[0]) => {
+  const openGroupInWorkspace = (
+    g: Parameters<typeof formatGroupIdentity>[0]
+  ) => {
     navigate({
       search: { day: g.day, time: g.time, groupId: g.id },
       replace: true,
@@ -195,8 +198,7 @@ function GroupsPage() {
   };
 
   const totalStudentsInSlot = useMemo(
-    () =>
-      slotGroups.reduce((acc, g) => acc + g.studentIds.length, 0),
+    () => slotGroups.reduce((acc, g) => acc + g.studentIds.length, 0),
     [slotGroups]
   );
 
@@ -220,7 +222,10 @@ function GroupsPage() {
                   setWorkspace(v as Weekday, workspaceTime);
                 }}
               >
-                <SelectTrigger className="h-9 w-full text-xs" aria-label="Lesson day">
+                <SelectTrigger
+                  className="h-9 w-full text-xs"
+                  aria-label="Lesson day"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -270,12 +275,16 @@ function GroupsPage() {
               </Badge>
               <Badge variant="outline">
                 {totalStudentsInSlot} student
-                {totalStudentsInSlot !== 1 ? "s" : ""} in slot
+                {totalStudentsInSlot !== 1 ? "s" : ""} in section
               </Badge>
             </div>
-            <Button type="button" className="gap-1" onClick={handleCreateGroupInSlot}>
+            <Button
+              type="button"
+              className="gap-1"
+              onClick={handleCreateGroupInSlot}
+            >
               <Plus data-icon="inline-start" />
-              New group in slot
+              New group in section
             </Button>
           </div>
 
@@ -295,8 +304,11 @@ function GroupsPage() {
                     <span className="text-left font-medium">
                       Lv{g.level} · {g.ageRange}
                     </span>
-                    <span className="max-w-full break-words text-left text-[0.5625rem] font-normal text-muted-foreground">
-                      {formatGroupIdentity(g, (id) => getInstructor(id)?.name)}
+                    <span className="max-w-full text-left text-[0.5625rem] font-normal break-words text-muted-foreground">
+                      {formatGroupIdentity(g, (id) => {
+                        const ins = getInstructor(id);
+                        return ins ? formatFullName(ins) : undefined;
+                      })}
                     </span>
                   </Button>
                 );
@@ -304,8 +316,8 @@ function GroupsPage() {
             </div>
           ) : (
             <p className="mt-3 text-xs text-muted-foreground">
-              No groups for {workspaceDay} {timeLabel(workspaceTime)} yet. Create
-              one to start assigning students.
+              No groups for {workspaceDay} {timeLabel(workspaceTime)} yet.
+              Create one to start assigning students.
             </p>
           )}
         </div>

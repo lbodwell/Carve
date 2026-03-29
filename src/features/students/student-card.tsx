@@ -1,11 +1,13 @@
 import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 
-import type {
-  LessonGroup,
-  LessonTimeSlot,
-  Student,
-  Weekday,
+import type {LessonGroup, LessonTimeSlot, Student, Weekday} from "@/lib/ski-school/types";
+import {
+  
+  
+  
+  
+  formatFullName
 } from "@/lib/ski-school/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,8 +96,8 @@ function StudentCard({
                 )}
                 aria-label={
                   dragDisabled
-                    ? `${student.name} cannot be dragged into this lesson`
-                    : `Drag ${student.name}`
+                    ? `${formatFullName(student)} cannot be dragged into this lesson`
+                    : `Drag ${formatFullName(student)}`
                 }
                 {...(dragDisabled ? {} : listeners)}
                 {...(dragDisabled ? {} : attributes)}
@@ -111,7 +113,7 @@ function StudentCard({
                     density === "compact" ? "text-xs" : "text-sm"
                   )}
                 >
-                  {student.name}
+                  {formatFullName(student)}
                 </p>
                 <Badge variant="outline" className="font-mono">
                   Lv{student.level}
@@ -145,10 +147,10 @@ function StudentCard({
               {otherGroups.length > 0 ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {otherGroups.map((g) => {
-                    const label = formatGroupIdentity(
-                      g,
-                      (id) => getInstructor(id)?.name
-                    );
+                    const label = formatGroupIdentity(g, (id) => {
+                      const ins = getInstructor(id);
+                      return ins ? formatFullName(ins) : undefined;
+                    });
                     const isSlotConflict = Boolean(
                       workspaceSlot &&
                         schedulesOverlap(
