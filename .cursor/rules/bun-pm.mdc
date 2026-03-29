@@ -1,0 +1,10 @@
+---
+description: Use Bun for installs and scripts in this repo
+alwaysApply: true
+---
+
+# Package manager
+
+- Use **Bun** for dependency installs and upgrades (`bun add`, `bun remove`, `bun update`), not npm, pnpm, or yarn.
+- Run project scripts with **Bun** (`bun run dev`, `bun run build`, `bun run lint`, `bun run test`, etc.).
+- The repo declares `packageManager` in `package.json`; keep the lockfile as `bun.lock`.

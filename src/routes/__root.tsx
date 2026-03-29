@@ -1,8 +1,16 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
-import { TanStackDevtools } from "@tanstack/react-devtools"
+import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { TanStackDevtools } from "@tanstack/react-devtools";
 
-import appCss from "../styles.css?url"
+import appCss from "../styles.css?url";
+import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { SkiSchoolProvider } from "@/lib/ski-school/context";
+
+// Injected before React hydrates to prevent flash of wrong theme.
+const themeScript = `
+(function(){try{var t=localStorage.getItem('carve-ui-theme');var d=document.documentElement;d.classList.remove('light','dark');if(t==='dark'||t==='light'){d.classList.add(t);}else{var mq=window.matchMedia('(prefers-color-scheme: dark)');d.classList.add(mq.matches?'dark':'light');}}catch(e){}})();
+`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -15,7 +23,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: "Carve Ski School",
       },
     ],
     links: [
@@ -26,16 +34,21 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
-})
+});
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        {children}
+        <ThemeProvider defaultTheme="system">
+          <TooltipProvider>
+            <SkiSchoolProvider>{children}</SkiSchoolProvider>
+          </TooltipProvider>
+        </ThemeProvider>
         <TanStackDevtools
           config={{
             position: "bottom-right",
@@ -50,5 +63,5 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
